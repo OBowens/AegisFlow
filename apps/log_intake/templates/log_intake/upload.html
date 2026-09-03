@@ -1,0 +1,55 @@
+{% extends "layouts/app_base.html" %}
+{% block title %}Upload Data | {{ BRAND_NAME }}{% endblock %}
+{% block app_content %}
+<span class="sr-only">Upload Logs</span>
+<section class="page-intro af-upload-intro"><div class="page-intro__copy"><h1>Upload and analyze security data</h1><p>Upload logs and system data. We’ll handle the rest.</p></div></section>
+
+<section class="af-flow-strip" aria-label="Upload workflow">
+  <article><b>1</b><div><strong>Upload</strong><span>Add your log files or connect a source.</span></div></article>
+  <i><svg class="icon"><use href="#icon-arrow-right"></use></svg></i>
+  <article><b>2</b><div><strong>Analyze</strong><span>We parse, normalize, and detect what matters.</span></div></article>
+  <i><svg class="icon"><use href="#icon-arrow-right"></use></svg></i>
+  <article><b>3</b><div><strong>Review incidents</strong><span>You review grouped incidents and critical alerts.</span></div></article>
+</section>
+
+<form class="af-upload-layout" method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div class="af-upload-main">
+    <section class="af-upload-drop-panel">
+      {{ form.log_file }}
+      <label class="af-upload-drop" for="{{ form.log_file.id_for_label }}" data-dropzone>
+        <svg class="icon"><use href="#icon-upload"></use></svg>
+        <strong>Drag and drop files here</strong><span>or</span><em>Select Files</em>
+        <small>.log, .json, .jsonl, .csv, .txt files up to 5 MB each</small>
+      </label>
+      {% if form.log_file.errors or form.non_field_errors %}<div class="upload-form-errors">{{ form.non_field_errors }}{{ form.log_file.errors }}</div>{% endif %}
+      <div class="upload-selected-files is-hidden" data-selected-uploads></div>
+      <div class="sr-only" data-upload-empty>No file selected yet</div>
+    </section>
+
+    <section class="af-source-panel">
+      <div class="af-panel-heading"><div><h2>Supported sources</h2><p>Choose the matching source when you upload.</p></div></div>
+      <div class="af-source-grid" role="group" aria-label="Supported upload sources">{% for source in supported_source_cards %}<button type="button" data-source-card data-source-value="{{ source.value }}"><span class="upload-source-card__badge upload-source-card__badge--{{ source.tone }}">{{ source.badge }}</span><span><strong>{{ source.label }}</strong><small>{{ source.subtitle }}</small></span><svg class="icon af-source-check" aria-hidden="true"><use href="#icon-circle-check"></use></svg></button>{% endfor %}</div>
+    </section>
+
+    <section class="af-upload-options">
+      <header class="af-upload-options__head"><div><h2>Upload details</h2><p>Add any context about these logs to help AegisFlow process them accurately.</p></div><span>Optional</span></header>
+      <div class="af-upload-options__fields">
+        <div class="upload-field"><div class="upload-field__label-row"><label for="{{ form.source_type.id_for_label }}">{{ form.source_type.label }}</label><svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg></div>{{ form.source_type }}{{ form.source_type.errors }}</div>
+        <div class="upload-field upload-field--notes"><div class="upload-field__label-row"><label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label><svg class="icon" aria-hidden="true"><use href="#icon-info"></use></svg></div>{{ form.notes }}<div class="upload-notes-meta">{{ form.notes.errors }}<span><span data-notes-count>0</span>/500</span></div></div>
+      </div>
+      <label class="upload-checkbox af-upload-sensitive"><input type="checkbox" name="contains_sensitive_data" value="1"><span><strong>These logs contain sensitive or personal data</strong><small>Mark this if the file may contain PII, credentials, or other restricted information.</small></span></label>
+      <footer class="af-upload-options__actions"><button class="af-upload-cancel" type="reset">Cancel</button><button class="af-analyze-button" type="submit"><span>Continue</span><span class="sr-only"> to Analyze Logs</span><svg class="icon"><use href="#icon-arrow-right"></use></svg></button></footer>
+    </section>
+  </div>
+
+  <aside class="af-upload-rail">
+    <section class="af-next-card"><h2>What happens next?</h2>{% for item in upload_guidance_items|slice:":3" %}<article><span><svg class="icon"><use href="#icon-{{ item.icon }}"></use></svg></span><div><strong>{{ item.title }}</strong><p>{{ item.description }}</p></div></article>{% endfor %}<footer>We do the heavy lifting so you can focus on protecting your organization.</footer></section>
+  </aside>
+</form>
+
+<section class="af-recent-uploads">
+  <div class="af-panel-heading"><div><h2>Recent uploads</h2><p>Your latest security data and processing status.</p></div><span>{{ uploaded_files_count }} total</span></div>
+  {% if recent_uploads %}<div class="results-table-wrap"><table class="results-table"><thead><tr><th>File name</th><th>Source type</th><th>Uploaded</th><th>Parsing status</th><th>Actions</th></tr></thead><tbody>{% for uploaded in recent_uploads %}<tr><td class="results-alert-cell"><span class="upload-file-badge upload-file-badge--{{ uploaded.file_badge_tone }}">{{ uploaded.file_badge }}</span><strong>{{ uploaded.file_name }}</strong></td><td>{{ uploaded.file_kind }}</td><td>{{ uploaded.uploaded_display }}</td><td><span class="status-pill status-pill--{{ uploaded.status_tone }}">{{ uploaded.status_label }}</span></td><td class="upload-table-actions"><a class="upload-file-row__action" href="{% url 'log_intake:results' uploaded.id %}" aria-label="Open {{ uploaded.file_name }}"><svg class="icon"><use href="#icon-arrow-right"></use></svg></a><form method="post" action="{% url 'log_intake:delete_upload' uploaded.id %}" data-delete-upload-form data-confirm-message="Delete &quot;{{ uploaded.file_name }}&quot;? This cannot be undone.">{% csrf_token %}<button class="upload-file-row__delete" type="submit"><svg class="icon"><use href="#icon-trash"></use></svg></button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state"><h3>No uploads yet</h3><p>Select files above to start your first analysis.</p></div>{% endif %}
+</section>
+{% endblock %}

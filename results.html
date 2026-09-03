@@ -1,0 +1,259 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Analysis Results | CaribSecure AI{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2>{{ page_title }}</h2>
+    <p>{{ page_description }}</p>
+</section>
+
+<div class="grid two">
+    <div class="card">
+        <h3>Uploaded File Details</h3>
+        <table>
+            <tbody>
+                <tr>
+                    <th>File Name</th>
+                    <td>{{ uploaded_file.file_name }}</td>
+                </tr>
+                <tr>
+                    <th>Organization</th>
+                    <td>{{ uploaded_file.organization.name }}</td>
+                </tr>
+                <tr>
+                    <th>Source Type</th>
+                    <td>{{ uploaded_file.get_source_type_display }}</td>
+                </tr>
+                <tr>
+                    <th>Status</th>
+                    <td><span class="pill">{{ uploaded_file.get_status_display }}</span></td>
+                </tr>
+                <tr>
+                    <th>Uploaded By</th>
+                    <td>{{ uploaded_file.uploaded_by|default:"Anonymous / demo upload" }}</td>
+                </tr>
+                <tr>
+                    <th>Uploaded At</th>
+                    <td>{{ uploaded_file.uploaded_at }}</td>
+                </tr>
+                <tr>
+                    <th>Storage Path</th>
+                    <td>{{ uploaded_file.storage_path }}</td>
+                </tr>
+                <tr>
+                    <th>Notes</th>
+                    <td>{{ uploaded_file.notes|default:"No additional notes provided." }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Workflow Overview</h3>
+        <div class="stats">
+            <div class="stat">
+                <span class="muted">Parsed Alerts</span>
+                <strong>{{ workflow_summary.parsed_alerts }}</strong>
+                <span class="muted">record{{ workflow_summary.parsed_alerts|pluralize }}</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Incidents</span>
+                <strong>{{ workflow_summary.incidents }}</strong>
+                <span class="muted">group{{ workflow_summary.incidents|pluralize }}</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Risks</span>
+                <strong>{{ workflow_summary.risks }}</strong>
+                <span class="muted">finding{{ workflow_summary.risks|pluralize }}</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Readiness</span>
+                <strong>{{ workflow_summary.readiness_findings }}</strong>
+                <span class="muted">concern{{ workflow_summary.readiness_findings|pluralize }}</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Playbooks</span>
+                <strong>{{ workflow_summary.playbooks }}</strong>
+                <span class="muted">generated</span>
+            </div>
+            <div class="stat">
+                <span class="muted">High/Critical</span>
+                <strong>{{ workflow_summary.high_critical_incidents }}</strong>
+                <span class="muted">incident{{ workflow_summary.high_critical_incidents|pluralize }}</span>
+            </div>
+        </div>
+        <div class="actions" style="margin-top: 18px;">
+            <a class="button secondary" href="{% url 'log_intake:file_list' %}">Back to Uploaded Files</a>
+            <a class="button secondary" href="{% url 'incidents:index' %}">View All Incidents</a>
+            {% if report %}
+                <a class="button" href="{% url 'reports:detail' report.id %}">Open Manager Report</a>
+            {% else %}
+                <a class="button disabled" href="#">Manager Report Pending</a>
+            {% endif %}
+        </div>
+        <p class="muted" style="margin-top: 14px;">
+            Severity counts remain visible below, but the full deterministic workflow now creates incidents, risks, playbooks, and a manager report.
+        </p>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 22px;">
+    <h3>Severity Breakdown</h3>
+    <div class="stats">
+        {% for severity, count in severity_counts.items %}
+            <div class="stat">
+                <span class="muted">{{ severity|title }}</span>
+                <strong>{{ count }}</strong>
+                <span class="muted">alert{{ count|pluralize }}</span>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card" style="margin-top: 22px;">
+    <h3>Parsed Alerts</h3>
+    {% if parsed_alerts %}
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Severity</th>
+                    <th>Event Type</th>
+                    <th>Affected System</th>
+                    <th>Account</th>
+                    <th>IP Flow</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for alert in parsed_alerts %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td><span class="pill">{{ alert.get_severity_hint_display }}</span></td>
+                        <td>{{ alert.event_type }}</td>
+                        <td>{{ alert.affected_system|default:"Unknown system" }}</td>
+                        <td>{{ alert.account|default:"-" }}</td>
+                        <td>
+                            {{ alert.source_ip|default:"-" }}
+                            {% if alert.destination_ip %}
+                                → {{ alert.destination_ip }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ alert.normalized_summary }}</strong>
+                            <div class="muted" style="margin-top: 6px;">{{ alert.raw_message }}</div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <p>No parsed alerts were created for this upload.</p>
+            <p class="muted">If the upload status is failed, review the sample file format and try again.</p>
+        </div>
+    {% endif %}
+</div>
+
+<div class="grid two" style="margin-top: 22px;">
+    <div class="card">
+        <h3>Incidents Created</h3>
+        {% if incidents %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Severity</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for incident in incidents %}
+                        <tr>
+                            <td>{{ incident.title }}</td>
+                            <td><span class="pill">{{ incident.get_severity_display }}</span></td>
+                            <td>{{ incident.get_status_display }}</td>
+                            <td><a href="{% url 'incidents:detail' incident.id %}">Open Incident</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state"><p>No incidents were grouped for this upload.</p></div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Risk Findings</h3>
+        {% if risks %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Risk</th>
+                        <th>Level</th>
+                        <th>Gap</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for risk in risks %}
+                        <tr>
+                            <td>{{ risk.risk_title }}</td>
+                            <td><span class="pill">{{ risk.get_risk_level_display }}</span></td>
+                            <td>{{ risk.gap.gap_name|default:"-" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state"><p>No risk assessments were created.</p></div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid two" style="margin-top: 22px;">
+    <div class="card">
+        <h3>Readiness Findings</h3>
+        {% if readiness_findings %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Issue</th>
+                        <th>Priority</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for finding in readiness_findings %}
+                        <tr>
+                            <td>{{ finding.readiness_issue }}</td>
+                            <td><span class="pill">{{ finding.get_priority_display }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state"><p>No readiness findings were created.</p></div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Response Playbooks</h3>
+        {% if playbooks %}
+            {% for playbook in playbooks %}
+                <div class="card" style="margin-bottom: 14px;">
+                    <h4 style="margin-top: 0;">{{ playbook.title }}</h4>
+                    <p class="muted">{{ playbook.summary }}</p>
+                    <ul>
+                        {% for step in playbook.steps.all|slice:":3" %}
+                            <li>Step {{ step.step_number }}: {{ step.action }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state"><p>No playbooks were created.</p></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

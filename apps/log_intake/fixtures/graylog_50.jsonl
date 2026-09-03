@@ -1,0 +1,50 @@
+{"timestamp": "2026-08-23T12:00:17Z", "source": "django-app01", "level": 6, "facility": "application", "message": "HTTP 200 on /api/v1/alerts/", "application_name": "aegis", "http_status": 200, "request_method": "PUT", "client_ip": "10.20.30.77"}
+{"timestamp": "2026-08-23T12:02:53Z", "source": "backup01", "level": 3, "facility": "backup", "message": "snapshot cleanup warning", "job_name": "Nightly-VM"}
+{"timestamp": "2026-08-23T12:04:56Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for mroberts from 10.20.15.51 port 59024 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:06:02Z", "source": "django-app01", "level": 6, "facility": "application", "message": "HTTP 200 on /api/v1/reports/", "application_name": "aegis", "http_status": 200, "request_method": "PUT", "client_ip": "10.20.15.87"}
+{"timestamp": "2026-08-23T12:08:38Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "198.51.100.44", "dst_ip": "198.51.100.87", "dst_port": 3389, "action": "blocked", "severity": "high"}
+{"timestamp": "2026-08-23T12:10:45Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for mroberts from 10.20.15.44 port 57036 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:12:34Z", "source": "dc01", "level": 6, "facility": "windows", "message": "Account locked out", "event_id": 4728}
+{"timestamp": "2026-08-23T12:14:42Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for mroberts from 10.20.15.87 port 61737 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:16:07Z", "source": "dc01", "level": 4, "facility": "windows", "message": "Account locked out", "event_id": 4728}
+{"timestamp": "2026-08-23T12:18:25Z", "source": "django-app01", "level": 3, "facility": "application", "message": "HTTP 403 on /api/v1/users/", "application_name": "aegis", "http_status": 403, "request_method": "POST", "client_ip": "10.20.30.77"}
+{"timestamp": "2026-08-23T12:20:24Z", "source": "backup01", "level": 3, "facility": "backup", "message": "backup job failed", "job_name": "DB-Daily"}
+{"timestamp": "2026-08-23T12:22:19Z", "source": "db01", "level": 4, "facility": "postgres", "message": "checkpoint complete"}
+{"timestamp": "2026-08-23T12:24:18Z", "source": "django-app01", "level": 3, "facility": "application", "message": "HTTP 401 on /api/v1/reports/", "application_name": "aegis", "http_status": 401, "request_method": "PUT", "client_ip": "10.20.30.77"}
+{"timestamp": "2026-08-23T12:26:28Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "203.0.113.55", "dst_ip": "198.51.100.87", "dst_port": 4444, "action": "allowed", "severity": "critical"}
+{"timestamp": "2026-08-23T12:28:42Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for jsmith from 10.20.15.87 port 56890 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:30:40Z", "source": "backup01", "level": 3, "facility": "backup", "message": "snapshot cleanup warning", "job_name": "Nightly-VM"}
+{"timestamp": "2026-08-23T12:32:48Z", "source": "dc01", "level": 6, "facility": "windows", "message": "Account locked out", "event_id": 4625}
+{"timestamp": "2026-08-23T12:34:12Z", "source": "dc01", "level": 6, "facility": "windows", "message": "User logon successful", "event_id": 4624}
+{"timestamp": "2026-08-23T12:36:30Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for svc_backup from 10.20.15.44 port 54923 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:38:56Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "203.0.113.55", "dst_ip": "198.51.100.87", "dst_port": 3389, "action": "allowed", "severity": "high"}
+{"timestamp": "2026-08-23T12:40:09Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for helpdesk from 203.0.113.55 port 40181 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:42:55Z", "source": "dc01", "level": 6, "facility": "windows", "message": "Group membership changed", "event_id": 4625}
+{"timestamp": "2026-08-23T12:44:51Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for helpdesk from 198.51.100.44 port 55222 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:46:35Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for jsmith from 10.20.15.44 port 54957 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:48:51Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for administrator from 203.0.113.55 port 57404 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T12:50:38Z", "source": "db01", "level": 4, "facility": "postgres", "message": "too many connections"}
+{"timestamp": "2026-08-23T12:52:52Z", "source": "db01", "level": 3, "facility": "postgres", "message": "too many connections"}
+{"timestamp": "2026-08-23T12:54:58Z", "source": "dc01", "level": 4, "facility": "windows", "message": "User logon failed", "event_id": 4728}
+{"timestamp": "2026-08-23T12:56:16Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "10.20.15.51", "dst_ip": "203.0.113.10", "dst_port": 4444, "action": "allowed", "severity": "critical"}
+{"timestamp": "2026-08-23T12:58:17Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for administrator from 10.20.15.44 port 63381 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:00:15Z", "source": "django-app01", "level": 3, "facility": "application", "message": "HTTP 403 on /api/v1/alerts/", "application_name": "aegis", "http_status": 403, "request_method": "PUT", "client_ip": "10.20.15.44"}
+{"timestamp": "2026-08-23T13:02:09Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for mroberts from 10.20.30.77 port 62739 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:04:45Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for mroberts from 10.20.15.44 port 53594 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:06:21Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "198.51.100.44", "dst_ip": "203.0.113.10", "dst_port": 3389, "action": "blocked", "severity": "medium"}
+{"timestamp": "2026-08-23T13:08:26Z", "source": "dc01", "level": 4, "facility": "windows", "message": "User logon successful", "event_id": 4728}
+{"timestamp": "2026-08-23T13:10:00Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "10.20.15.87", "dst_ip": "203.0.113.10", "dst_port": 3389, "action": "allowed", "severity": "critical"}
+{"timestamp": "2026-08-23T13:12:47Z", "source": "backup01", "level": 3, "facility": "backup", "message": "backup job failed", "job_name": "Offsite-Replication"}
+{"timestamp": "2026-08-23T13:14:17Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for administrator from 10.20.30.77 port 40951 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:16:21Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "203.0.113.55", "dst_ip": "203.0.113.10", "dst_port": 80, "action": "allowed", "severity": "medium"}
+{"timestamp": "2026-08-23T13:18:34Z", "source": "db01", "level": 5, "facility": "postgres", "message": "too many connections"}
+{"timestamp": "2026-08-23T13:20:36Z", "source": "db01", "level": 3, "facility": "postgres", "message": "checkpoint complete"}
+{"timestamp": "2026-08-23T13:22:41Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for mroberts from 10.20.15.51 port 55128 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:24:03Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for klee from 10.20.30.77 port 50726 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:26:29Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for klee from 10.20.15.87 port 64943 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:28:17Z", "source": "firewall01", "level": 2, "facility": "firewall", "message": "IPS detected suspicious connection", "src_ip": "10.20.30.77", "dst_ip": "203.0.113.10", "dst_port": 22, "action": "allowed", "severity": "medium"}
+{"timestamp": "2026-08-23T13:30:34Z", "source": "backup01", "level": 6, "facility": "backup", "message": "snapshot cleanup warning", "job_name": "Nightly-VM"}
+{"timestamp": "2026-08-23T13:32:04Z", "source": "backup01", "level": 3, "facility": "backup", "message": "backup job completed", "job_name": "Nightly-VM"}
+{"timestamp": "2026-08-23T13:34:12Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for new.employee from 10.20.15.44 port 60359 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:36:15Z", "source": "web-server01", "level": 4, "facility": "sshd", "message": "Failed password for mroberts from 10.20.30.77 port 61936 ssh2", "application_name": "sshd"}
+{"timestamp": "2026-08-23T13:38:36Z", "source": "web-server01", "level": 6, "facility": "sshd", "message": "Accepted password for jsmith from 10.20.30.77 port 62920 ssh2", "application_name": "sshd"}

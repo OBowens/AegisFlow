@@ -1,0 +1,4 @@
+2026-06-21 09:00:01 host auth-gateway-01 failed login for user demo.analyst from 198.51.100.10
+2026-06-21 09:00:12 host auth-gateway-01 failed login for user demo.analyst from 198.51.100.10
+2026-06-21 09:00:33 host auth-gateway-01 brute force warning from 198.51.100.10 against account demo.analyst
+2026-06-21 09:01:05 host auth-gateway-01 authentication failure repeated from 198.51.100.44

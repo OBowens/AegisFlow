@@ -1,0 +1,72 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Upload Logs | CaribSecure AI{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2>{{ page_title }}</h2>
+    <p>{{ page_description }}</p>
+</section>
+
+<div class="grid two">
+    <div class="card">
+        <h3>Manual Demo Upload</h3>
+        <p class="muted">
+            Upload sample logs or reports only. Files are stored privately in the platform’s
+            protected upload directory and parsed into placeholder alerts for the MVP flow.
+        </p>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div>
+                <label for="{{ form.log_file.id_for_label }}">{{ form.log_file.label }}</label>
+                {{ form.log_file }}
+                {% if form.log_file.help_text %}
+                    <div class="helptext">{{ form.log_file.help_text }}</div>
+                {% endif %}
+                {{ form.log_file.errors }}
+            </div>
+
+            <div>
+                <label for="{{ form.source_type.id_for_label }}">{{ form.source_type.label }}</label>
+                {{ form.source_type }}
+                {{ form.source_type.errors }}
+            </div>
+
+            <div>
+                <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                {{ form.notes }}
+                {{ form.notes.errors }}
+            </div>
+
+            <div class="actions">
+                <button type="submit">Upload and Analyze</button>
+                <a class="button secondary" href="{% url 'log_intake:file_list' %}">View Uploaded Files</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>MVP Workflow</h3>
+        <div class="stats">
+            <div class="stat">
+                <span class="muted">Step 1</span>
+                <strong>Upload</strong>
+                <span class="muted">Save file to private storage.</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Step 2</span>
+                <strong>Parse</strong>
+                <span class="muted">Create placeholder parsed alerts.</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Step 3</span>
+                <strong>Review</strong>
+                <span class="muted">Inspect severities and next steps.</span>
+            </div>
+        </div>
+        <p class="muted">
+            Current accepted samples: `.txt`, `.log`, `.json`, and `.csv` up to 5 MB.
+        </p>
+    </div>
+</div>
+{% endblock %}

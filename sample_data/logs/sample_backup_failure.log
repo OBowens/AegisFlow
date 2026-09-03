@@ -1,0 +1,3 @@
+2026-06-21 08:14:00 system file-server-01 backup failed for nightly job target offsite-vault
+2026-06-21 08:14:11 system file-server-01 warning restore validation unavailable after backup failed
+2026-06-21 08:14:22 system file-server-01 degraded storage alert after backup failed on 203.0.113.25

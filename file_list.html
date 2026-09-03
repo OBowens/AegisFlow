@@ -1,0 +1,50 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Uploaded Files | CaribSecure AI{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2>{{ page_title }}</h2>
+    <p>{{ page_description }}</p>
+</section>
+
+<div class="actions" style="margin-bottom: 18px;">
+    <a class="button" href="{% url 'log_intake:upload' %}">Upload Another Sample</a>
+</div>
+
+{% if uploaded_files %}
+    <table>
+        <thead>
+            <tr>
+                <th>File Name</th>
+                <th>Source Type</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+                <th>Parsed Alerts</th>
+                <th>Notes</th>
+                <th>Results</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for uploaded_file in uploaded_files %}
+                <tr>
+                    <td>{{ uploaded_file.file_name }}</td>
+                    <td>{{ uploaded_file.get_source_type_display }}</td>
+                    <td><span class="pill">{{ uploaded_file.get_status_display }}</span></td>
+                    <td>{{ uploaded_file.uploaded_at }}</td>
+                    <td>{{ uploaded_file.parsed_alert_count }}</td>
+                    <td>{{ uploaded_file.notes|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'log_intake:results' uploaded_file.id %}">Open Results</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">
+        <p>No sample files have been uploaded yet.</p>
+        <a class="button" href="{% url 'log_intake:upload' %}">Start with a Demo Upload</a>
+    </div>
+{% endif %}
+{% endblock %}

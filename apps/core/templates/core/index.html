@@ -1,0 +1,50 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ page_title }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2>{{ page_title }}</h2>
+    <p>{{ page_description }}</p>
+</section>
+
+<div class="grid two">
+    <div class="card">
+        <h3>Workflow Snapshot</h3>
+        <div class="stats">
+            <div class="stat">
+                <span class="muted">Stage 1</span>
+                <strong>Upload</strong>
+                <span class="muted">Bring in sample logs and alerts.</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Stage 2</span>
+                <strong>Prioritize</strong>
+                <span class="muted">Group incidents and risk findings.</span>
+            </div>
+            <div class="stat">
+                <span class="muted">Stage 3</span>
+                <strong>Act</strong>
+                <span class="muted">Generate playbooks and manager-ready reports.</span>
+            </div>
+        </div>
+        <div class="actions" style="margin-top: 18px;">
+            <a class="button" href="{% url 'log_intake:upload' %}">Start Log Upload</a>
+            <a class="button secondary" href="{% url 'reports:index' %}">View Reports</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Workflow Modules</h3>
+        <ul>
+            {% for module_name in workflow_modules %}
+                <li>{{ module_name }}</li>
+            {% endfor %}
+        </ul>
+        <p class="muted">
+            These modules stay in the same internal code paths while the visible product brand
+            changes to AegisFlow AI.
+        </p>
+    </div>
+</div>
+{% endblock %}

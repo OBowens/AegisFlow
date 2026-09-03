@@ -1,0 +1,4 @@
+# The agent is standard-library only on Linux (dev/CI). The single
+# runtime dependency is Windows-only and used solely by
+# aegis_agent/sources/windows.py.
+pywin32==306 ; sys_platform == "win32"

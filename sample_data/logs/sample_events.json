@@ -1,0 +1,25 @@
+{
+  "events": [
+    {
+      "timestamp": "2026-06-21T05:15:00Z",
+      "host": "hq-vm-01",
+      "user": "demo.reviewer",
+      "source_ip": "192.0.2.60",
+      "destination_ip": "203.0.113.60",
+      "event_type": "malware_activity",
+      "message": "critical ransomware indicator detected on hq-vm-01"
+    },
+    {
+      "timestamp": "2026-06-21T05:20:00Z",
+      "host": "backup-proxy-01",
+      "event_type": "backup_failure",
+      "message": "backup failed and restore check unavailable for backup-proxy-01"
+    },
+    {
+      "timestamp": "2026-06-21T05:30:00Z",
+      "host": "internet-edge-01",
+      "event_type": "availability_issue",
+      "message": "internet link degraded and timeout warning observed on internet-edge-01"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}{{ page_title }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro">
+    <div class="page-intro__copy">
+        <h1>Evidence</h1>
+        <p>{{ page_description }}</p>
+    </div>
+    <div class="page-intro__meta">
+        <a class="link-inline" href="{{ detail_url }}">
+            <span>Back to Incident Detail</span>
+        </a>
+    </div>
+</section>
+
+<article class="dashboard-panel incident-detail-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <h2>
+            <svg class="icon"><use href="#icon-logs"></use></svg>
+            <span>{{ incident.title }}</span>
+        </h2>
+    </div>
+
+    {% if evidence_groups %}
+        <div class="incident-evidence-groups">
+            {% for group in evidence_groups %}
+                <section class="incident-evidence-group">
+                    <div class="incident-evidence-group__head">
+                        <h3>{{ group.title }}</h3>
+                        <span class="incident-count-pill">{{ group.count }}</span>
+                    </div>
+                    <ul class="incident-evidence-list">
+                        {% for item in group.items %}
+                            <li>
+                                <span class="incident-evidence-dot"></span>
+                                <span>{{ item.time_display }}</span>
+                                <strong>{{ item.detail }}</strong>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No evidence linked yet</h3>
+            <p>Related evidence alerts will appear here once the workflow groups them into this incident.</p>
+        </div>
+    {% endif %}
+</article>
+{% endblock %}

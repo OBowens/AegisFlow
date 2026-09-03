@@ -1,0 +1,812 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}Response Playbook | {{ BRAND_NAME }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .playbook-page-intro--reference {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 24px;
+        margin-bottom: 18px;
+    }
+
+    .playbook-page-intro__meta {
+        display: grid;
+        justify-items: end;
+        align-content: start;
+        gap: 10px;
+        min-width: max-content;
+    }
+
+    .playbook-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        gap: 10px;
+    }
+
+    .playbook-page-intro__timestamp {
+        width: 100%;
+        text-align: right;
+        color: var(--text-soft);
+        font-size: 0.92rem;
+        font-weight: 700;
+    }
+
+    .playbook-section-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .playbook-section-heading--summary {
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .playbook-section-heading__title {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .playbook-section-heading__number {
+        width: 28px;
+        height: 28px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 800;
+        background: linear-gradient(180deg, #2d7cf4, #2062d4);
+        box-shadow: 0 10px 18px rgba(18, 77, 166, 0.22);
+        flex: 0 0 auto;
+    }
+
+    .playbook-section-heading h2 {
+        margin: 0;
+        font-size: 1.16rem;
+        letter-spacing: -0.01em;
+    }
+
+    .playbook-section-heading p {
+        margin: 4px 0 0;
+        color: var(--text-muted);
+        font-size: 0.94rem;
+        line-height: 1.5;
+    }
+
+    .playbook-source-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .playbook-source-card {
+        min-height: 152px;
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid var(--border-soft);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.92));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+
+    html[data-theme="dark"] .playbook-source-card {
+        background: linear-gradient(180deg, rgba(18, 43, 75, 0.98), rgba(11, 32, 59, 0.96));
+    }
+
+    .playbook-source-controls {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .playbook-source-controls--prompt {
+        grid-template-columns: minmax(0, 1.25fr) auto;
+    }
+
+    .playbook-field {
+        min-height: 48px;
+        border-radius: 14px;
+        border: 1px solid var(--border-soft);
+        background: var(--surface-strong);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        color: var(--text-main);
+    }
+
+    .playbook-field .icon {
+        color: var(--accent-red);
+        flex: 0 0 auto;
+    }
+
+    .playbook-field select,
+    .playbook-field input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: none;
+        color: var(--text-main);
+        background: transparent;
+        font: inherit;
+    }
+
+    .playbook-field select {
+        appearance: none;
+        cursor: pointer;
+        padding-right: 18px;
+    }
+
+    .playbook-field input::placeholder {
+        color: var(--text-soft);
+    }
+
+    .playbook-source-button {
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .playbook-field--filter {
+        margin-bottom: 10px;
+    }
+
+    .playbook-source-scope-note {
+        margin: 10px 0 0;
+        color: var(--text-soft);
+        font-size: 0.86rem;
+    }
+
+    .playbook-source-scope-note a {
+        color: var(--accent-blue);
+        font-weight: 700;
+        margin-left: 4px;
+    }
+
+    .playbook-source-divider {
+        position: relative;
+        display: grid;
+        place-items: center;
+    }
+
+    .playbook-source-divider::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        background: var(--divider);
+        transform: translateX(-50%);
+    }
+
+    .playbook-source-divider span {
+        position: relative;
+        z-index: 1;
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        border: 1px solid var(--border-soft);
+        background: var(--surface-strong);
+        color: var(--accent-blue);
+        font-size: 0.84rem;
+        font-weight: 800;
+    }
+
+    .playbook-inline-empty {
+        margin-top: 16px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px dashed rgba(54, 124, 227, 0.32);
+        background: rgba(32, 98, 212, 0.06);
+        display: grid;
+        gap: 6px;
+    }
+
+    html[data-theme="dark"] .playbook-inline-empty {
+        background: rgba(20, 47, 82, 0.56);
+    }
+
+    .playbook-summary-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.55fr) repeat(4, minmax(0, 0.9fr));
+        gap: 0;
+        border-top: 1px solid var(--divider);
+        padding-top: 18px;
+    }
+
+    .playbook-summary-item {
+        min-width: 0;
+        padding: 0 20px;
+        border-left: 1px solid var(--divider);
+    }
+
+    .playbook-summary-item:first-child {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .playbook-summary-item span {
+        display: block;
+        color: var(--text-soft);
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
+    .playbook-summary-item strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 1rem;
+        line-height: 1.45;
+    }
+
+    .playbook-reference-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 18px;
+        margin-top: 18px;
+        align-items: start;
+    }
+
+    .playbook-reference-side {
+        display: grid;
+        gap: 18px;
+        align-items: start;
+    }
+
+    .playbook-side-split {
+        display: grid;
+        /* Kept in sync with static/css/dashboard.css's .playbook-side-split --
+           this inline block loads after that stylesheet, so its values win. */
+        grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 1.15fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .playbook-window-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 18px;
+    }
+
+    @media (max-width: 1420px) {
+        .playbook-summary-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px 18px;
+        }
+
+        .playbook-summary-item {
+            padding-left: 0;
+            border-left: 0;
+        }
+    }
+
+    @media (max-width: 1960px) {
+        .playbook-side-split {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 1080px) {
+        .playbook-toolbar {
+            flex-wrap: wrap;
+        }
+
+        .playbook-source-grid,
+        .playbook-reference-grid,
+        .playbook-window-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 991px) {
+        .playbook-page-intro--reference {
+            grid-template-columns: 1fr;
+        }
+
+        .playbook-page-intro__meta {
+            justify-items: start;
+            min-width: 0;
+        }
+
+        .playbook-toolbar {
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .playbook-page-intro__timestamp {
+            text-align: left;
+        }
+    }
+
+    @media (max-width: 680px) {
+        .playbook-source-grid,
+        .playbook-summary-grid,
+        .playbook-side-split,
+        .playbook-window-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .playbook-source-divider::before {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block app_content %}
+<section class="page-intro playbook-page-intro playbook-page-intro--reference">
+    <div class="page-intro__copy">
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+    </div>
+    <div class="page-intro__meta playbook-page-intro__meta">
+        <div class="playbook-toolbar">
+            {% if incident_generate_playbook_url %}
+            <form method="post" action="{{ incident_generate_playbook_url }}" style="display:contents" data-ai-action>
+                {% csrf_token %}
+                <input type="hidden" name="return_to" value="{{ playbook_refresh_url }}">
+                <button class="playbook-toolbar__action playbook-toolbar__action--secondary" type="submit">
+                    <svg class="icon"><use href="#icon-refresh"></use></svg>
+                    <span>{% if has_playbook %}Add AI Steps{% else %}Generate AI Playbook{% endif %}</span>
+                </button>
+            </form>
+            {% endif %}
+            <a class="playbook-toolbar__action playbook-toolbar__action--secondary" href="{{ upload_summary_report_url }}">
+                <svg class="icon"><use href="#icon-reports-nav"></use></svg>
+                <span>View Upload Summary</span>
+            </a>
+            <a class="playbook-toolbar__action playbook-toolbar__action--secondary" href="{{ checklist_section_url }}">
+                <svg class="icon"><use href="#icon-checklist"></use></svg>
+                <span>Go to Checklist</span>
+            </a>
+            <a class="playbook-toolbar__action playbook-toolbar__action--secondary" href="{{ escalation_section_url }}">
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                <span>Go to Escalation Path</span>
+            </a>
+        </div>
+        <span class="playbook-page-intro__timestamp">Last updated: {{ dashboard_updated_at }}</span>
+    </div>
+</section>
+
+<section class="dashboard-panel playbook-source-panel" id="playbook-source">
+    <div class="playbook-section-heading">
+        <span class="playbook-section-heading__number">1</span>
+        <div>
+            <h2>Playbook Source</h2>
+            <p>Choose how you&apos;d like to generate a playbook.</p>
+        </div>
+    </div>
+
+    <div class="playbook-source-grid">
+        <form class="playbook-source-card playbook-source-card--incident" method="get">
+            <h3>Use Existing Incident</h3>
+            <p>Generate a playbook from a detected incident.</p>
+
+            {% if show_all_incidents %}
+                <input type="hidden" name="show_all" value="1">
+            {% endif %}
+
+            <label class="playbook-field playbook-field--filter">
+                <input
+                    type="text"
+                    id="incident-filter-input"
+                    placeholder="Type to filter incidents…"
+                    autocomplete="off"
+                    {% if not source_options %}disabled{% endif %}
+                >
+            </label>
+
+            <div class="playbook-source-controls">
+                <label class="playbook-field playbook-field--select">
+                    <svg class="icon"><use href="#icon-critical"></use></svg>
+                    <select name="incident" id="incident-select" {% if not source_options %}disabled{% endif %}>
+                        {% if source_options %}
+                            {% for option in source_options %}
+                                <option value="{{ option.id }}" {% if option.selected %}selected{% endif %} data-search="{{ option.search_text }}">
+                                    {{ option.label }} | {{ option.severity_label }}
+                                </option>
+                            {% endfor %}
+                        {% else %}
+                            <option>No incidents available yet</option>
+                        {% endif %}
+                    </select>
+                </label>
+
+                <button class="playbook-toolbar__action playbook-toolbar__action--primary playbook-source-button" type="submit" {% if not source_options %}disabled{% endif %}>
+                    <svg class="icon"><use href="#icon-playbook"></use></svg>
+                    <span>Generate Playbook</span>
+                </button>
+            </div>
+
+            <p class="playbook-source-scope-note">
+                {% if show_all_incidents %}
+                    Showing all {{ total_incident_count }} incident{{ total_incident_count|pluralize }}.
+                    <a href="{{ scoped_incidents_url }}">Show open/investigating only</a>
+                {% else %}
+                    Showing {{ open_incident_count }} open/investigating incident{{ open_incident_count|pluralize }}
+                    of {{ total_incident_count }} total.
+                    <a href="{{ show_all_incidents_url }}">Show all incidents</a>
+                {% endif %}
+            </p>
+        </form>
+
+        <div class="playbook-source-divider" aria-hidden="true">
+            <span>OR</span>
+        </div>
+
+        <form class="playbook-source-card playbook-source-card--custom" method="post" action="{{ generate_custom_playbook_url }}" data-ai-action>
+            {% csrf_token %}
+            <h3>Ask for Custom Playbook</h3>
+            <p>Describe the scenario or request the playbook you need.</p>
+
+            <div class="playbook-source-controls playbook-source-controls--prompt">
+                <label class="playbook-field playbook-field--prompt">
+                    <input
+                        type="text"
+                        name="custom_prompt"
+                        value="{{ custom_prompt }}"
+                        placeholder="Give me a playbook for resetting a VM safely."
+                    >
+                </label>
+                <button class="playbook-toolbar__action playbook-toolbar__action--primary playbook-source-button" type="submit">
+                    <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                    <span>Generate Custom Playbook</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if not has_playbook %}
+        <div class="playbook-inline-empty">
+            <strong>No response playbook generated yet.</strong>
+            <span>Select an incident above or ask for a custom playbook to populate the summary, steps, approvals, and action timelines below.</span>
+        </div>
+    {% endif %}
+</section>
+
+<section class="dashboard-panel playbook-summary-panel">
+    <div class="playbook-section-heading playbook-section-heading--summary">
+        <div class="playbook-section-heading__title">
+            <span class="playbook-section-heading__number">2</span>
+            <div>
+                <h2>Incident Summary</h2>
+                <p>
+                    <span class="playbook-source-pill">{{ playbook_source_label }}</span>
+                </p>
+            </div>
+        </div>
+        <a class="link-inline" href="{% if has_playbook %}{{ incident_detail_url }}{% else %}{{ incidents_url }}{% endif %}">
+            {% if has_playbook %}
+                <span>View Full Checklist</span>
+            {% else %}
+                <span>View Incidents</span>
+            {% endif %}
+            <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+        </a>
+    </div>
+
+    <div class="playbook-summary-grid">
+        <article class="playbook-summary-item">
+            <span>Source</span>
+            <strong>{{ playbook_source_label }}</strong>
+        </article>
+        <article class="playbook-summary-item playbook-summary-item--wide">
+            <span>Incident</span>
+            <strong>{{ incident_title }}</strong>
+        </article>
+        <article class="playbook-summary-item">
+            <span>Severity</span>
+            <strong class="severity-pill severity-pill--{{ severity_key }}">{{ severity_label }}</strong>
+        </article>
+        <article class="playbook-summary-item">
+            <span>Affected System</span>
+            <strong class="playbook-summary-link">{{ affected_system }}</strong>
+        </article>
+        <article class="playbook-summary-item">
+            <span>Confidence</span>
+            <strong class="playbook-confidence-pill playbook-confidence-pill--{{ confidence.key }}">{{ confidence.label }}</strong>
+        </article>
+        <article class="playbook-summary-item">
+            <span>Detected</span>
+            <strong>{{ detected_label }}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="playbook-reference-grid">
+    <article class="dashboard-panel playbook-reference-panel" id="playbook-steps">
+        <div class="playbook-section-heading">
+            <span class="playbook-section-heading__number">3</span>
+            <div>
+                <h2>Response Playbook Steps</h2>
+                <p>Step-by-step actions to contain, investigate, and remediate this incident.</p>
+            </div>
+        </div>
+
+        {% if steps %}
+            <ol class="playbook-reference-list">
+                {% for step in steps %}
+                    <li class="playbook-reference-row">
+                        <span class="playbook-reference-row__number">{{ step.number }}</span>
+                        <span class="playbook-reference-row__icon">
+                            <svg class="icon"><use href="#icon-{{ step.icon }}"></use></svg>
+                        </span>
+                        <div class="playbook-reference-row__copy">
+                            <strong>{{ step.title }}</strong>
+                            <p>{{ step.description }}</p>
+                            <div class="playbook-reference-row__badges">
+                                {% if step.is_ai_generated %}
+                                    <span class="playbook-step-ai-badge">
+                                        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                                        <span>AI-generated</span>
+                                    </span>
+                                {% endif %}
+                                {% if step.requires_approval %}
+                                    <span class="playbook-step-approval-badge">
+                                        <svg class="icon"><use href="#icon-warning"></use></svg>
+                                        <span>Requires human approval</span>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="playbook-step-status playbook-step-status--{{ step.status_key }}">{{ step.status_label }}</span>
+                        {% if step.status_update_url %}
+                            <form method="post" action="{{ step.status_update_url }}" class="playbook-step-status-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ playbook_refresh_url }}#playbook-steps">
+                                <select name="status" class="upload-select" data-auto-submit aria-label="Update status for step {{ step.number }}">
+                                    {% for value, label in step_status_options %}
+                                        <option value="{{ value }}" {% if step.status_value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        {% else %}
+                            <span class="playbook-reference-row__chevron">
+                                <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+                            </span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <div class="empty-state">
+                <h3>No response steps available yet</h3>
+                <p>Generate a playbook from the source options above to populate the step-by-step workflow.</p>
+            </div>
+        {% endif %}
+    </article>
+
+    <div class="playbook-reference-side">
+        <article class="dashboard-panel playbook-reference-panel" id="linked-checklist">
+            <div class="playbook-section-heading">
+                <span class="playbook-section-heading__number">4</span>
+                <div>
+                    <h2>Linked SOP / Checklist</h2>
+                    <p>Related procedures and checklist tasks for this incident.</p>
+                </div>
+            </div>
+
+            {% if checklist_items %}
+                <ul class="playbook-checklist-reference">
+                    {% for item in checklist_items %}
+                        <li class="playbook-checklist-reference__item {% if item.checked %}is-checked{% endif %}">
+                            {% if item.interactive %}
+                                <form method="post" action="{{ item.toggle_url }}" class="playbook-checklist-reference__form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="item_key" value="{{ item.item_key }}">
+                                    <input type="hidden" name="next" value="{{ playbook_refresh_url }}#linked-checklist">
+                                    <input
+                                        type="checkbox"
+                                        class="playbook-checklist-reference__checkbox"
+                                        {% if item.checked %}checked{% endif %}
+                                        data-auto-submit
+                                        aria-label="Mark checklist item complete: {{ item.text }}"
+                                    >
+                                </form>
+                            {% else %}
+                                <span class="playbook-checklist-reference__box" aria-hidden="true"></span>
+                            {% endif %}
+                            <span class="playbook-checklist-reference__text">{{ item.text }}</span>
+                            <span class="playbook-checklist-reference__status playbook-checklist-reference__status--{{ item.status_key }}">{{ item.status_label }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-state">
+                    <h3>No checklist linked yet</h3>
+                    <p>When a playbook is generated, the linked SOP and checklist tasks will appear here.</p>
+                </div>
+            {% endif %}
+        </article>
+
+        <div class="playbook-side-split">
+            <article class="dashboard-panel playbook-reference-panel" id="human-approval">
+                <div class="playbook-section-heading">
+                    <span class="playbook-section-heading__number">5</span>
+                    <div>
+                        <h2>Human Approval Required</h2>
+                        <p>High-impact actions require human approval.</p>
+                    </div>
+                </div>
+
+                {% if approval_items %}
+                    <ul class="playbook-approval-list">
+                        {% for item in approval_items %}
+                            <li class="playbook-approval-list__item">
+                                <span class="playbook-approval-list__icon">
+                                    <svg class="icon"><use href="#icon-critical"></use></svg>
+                                </span>
+                                <span class="playbook-approval-list__text">{{ item.text }}</span>
+                                <span class="playbook-approval-list__status">{{ item.status_label }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>No pending approvals</h3>
+                        <p>Approval-needed actions will appear here after the response playbook is generated.</p>
+                    </div>
+                {% endif %}
+            </article>
+
+            <article class="dashboard-panel playbook-reference-panel" id="escalation-path">
+                <div class="playbook-section-heading">
+                    <span class="playbook-section-heading__number">6</span>
+                    <div>
+                        <h2>Escalation Path</h2>
+                        <p>Define escalation path and notify the right people.</p>
+                    </div>
+                </div>
+
+                {% if escalation_contacts %}
+                    <div class="playbook-escalation-chain">
+                        {% for contact in escalation_contacts %}
+                            <article class="playbook-escalation-chain__card playbook-escalation-chain__card--{{ contact.tone }}">
+                                <div class="playbook-escalation-chain__avatar playbook-escalation-chain__avatar--{{ contact.tone }}">{{ contact.initials }}</div>
+                                <div class="playbook-escalation-chain__copy">
+                                    <strong>{{ contact.title }}</strong>
+                                    <span>{{ contact.tier }}</span>
+                                    <small>{{ contact.detail }}</small>
+                                </div>
+                            </article>
+                            {% if not forloop.last %}
+                                <div class="playbook-escalation-chain__arrow" aria-hidden="true">
+                                    <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>No escalation owners assigned yet</h3>
+                        <p>Assigning or generating a playbook will populate the escalation path and ownership chain here.</p>
+                    </div>
+                {% endif %}
+
+                <div class="dashboard-panel__footer">
+                    <a class="link-inline" href="{{ sop_library_url }}">
+                        <span>View SOP Library</span>
+                        <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                    </a>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="playbook-window-grid">
+    <article class="dashboard-panel playbook-window-shell">
+        <div class="playbook-window-shell__top">
+            <div class="playbook-window-shell__icon playbook-window-shell__icon--blue">
+                <svg class="icon"><use href="#icon-bolt"></use></svg>
+            </div>
+            <div>
+                <h2>Immediate Actions (0-2 Hours)</h2>
+                <p>Contain the threat and prevent further access.</p>
+            </div>
+        </div>
+
+        {% if immediate_actions %}
+            <ul class="playbook-window-shell__list">
+                {% for action in immediate_actions %}
+                    <li>{{ action }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="empty-state">
+                <h3>No immediate actions defined yet</h3>
+                <p>Once a playbook is generated, the first-response actions for the next few hours will appear here.</p>
+            </div>
+        {% endif %}
+
+        <div class="playbook-window-shell__visual playbook-window-shell__visual--shield" aria-hidden="true">
+            <span class="playbook-window-shell__glow"></span>
+            <span class="playbook-window-shell__frame">
+                <svg class="icon"><use href="#icon-shield-check"></use></svg>
+            </span>
+        </div>
+    </article>
+
+    <article class="dashboard-panel playbook-window-shell">
+        <div class="playbook-window-shell__top">
+            <div class="playbook-window-shell__icon playbook-window-shell__icon--outline">
+                <svg class="icon"><use href="#icon-clock"></use></svg>
+            </div>
+            <div>
+                <h2>Next 24 Hours</h2>
+                <p>Investigate, recover, and strengthen.</p>
+            </div>
+        </div>
+
+        {% if next_actions %}
+            <ul class="playbook-window-shell__list">
+                {% for action in next_actions %}
+                    <li>{{ action }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="empty-state">
+                <h3>No next-step actions defined yet</h3>
+                <p>Recovery, validation, and follow-up work for the next 24 hours will appear here after generation.</p>
+            </div>
+        {% endif %}
+
+        <div class="playbook-window-shell__visual playbook-window-shell__visual--calendar" aria-hidden="true">
+            <span class="playbook-window-shell__glow"></span>
+            <span class="playbook-window-shell__frame">
+                <svg class="icon"><use href="#icon-calendar"></use></svg>
+            </span>
+        </div>
+    </article>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    (function () {
+        var filterInput = document.getElementById("incident-filter-input");
+        var select = document.getElementById("incident-select");
+        if (!filterInput || !select) {
+            return;
+        }
+
+        var options = Array.prototype.slice.call(select.options);
+
+        filterInput.addEventListener("input", function () {
+            var query = filterInput.value.trim().toLowerCase();
+            var firstVisible = null;
+
+            options.forEach(function (option) {
+                var haystack = option.dataset.search || option.textContent.toLowerCase();
+                var matches = !query || haystack.indexOf(query) !== -1;
+                option.hidden = !matches;
+                option.disabled = !matches;
+                if (matches && !firstVisible) {
+                    firstVisible = option;
+                }
+            });
+
+            // If the currently selected incident got filtered out, jump the
+            // select to the first still-visible match so submitting the form
+            // doesn't silently generate a playbook for a hidden option.
+            var selected = select.options[select.selectedIndex];
+            if (selected && selected.hidden && firstVisible) {
+                select.value = firstVisible.value;
+            }
+        });
+    })();
+</script>
+{% endblock %}

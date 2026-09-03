@@ -1,0 +1,112 @@
+============================================================
+Synthetic Backup Job Report Collection
+============================================================
+Job Name: Weekly-Full
+Server: pbs01.example.local
+Start Time: 2026-08-23 00:30:00
+End Time: 2026-08-23 01:02:00
+Status: WARNING
+VM Name: APP01
+Result: SUCCESS
+Backup Size: 34.6 GB
+VM Name: FILE01
+Result: SUCCESS
+Backup Size: 153.7 GB
+------------------------------------------------------------
+Job Name: Weekly-Full
+Server: pbs01.example.local
+Start Time: 2026-08-23 01:30:00
+End Time: 2026-08-23 01:47:00
+Status: WARNING
+VM Name: APP01
+Result: SUCCESS
+Backup Size: 146.8 GB
+VM Name: APP01
+Result: SUCCESS
+Backup Size: 112.7 GB
+VM Name: RDS01
+Result: WARNING
+Backup Size: 13.0 GB
+Message: Snapshot cleanup completed with warnings.
+------------------------------------------------------------
+Job Name: FileServer-Backup
+Server: pbs01.example.local
+Start Time: 2026-08-23 02:30:00
+End Time: 2026-08-23 03:02:00
+Status: WARNING
+VM Name: WEB01
+Result: SUCCESS
+Backup Size: 105.4 GB
+VM Name: FILE01
+Result: SUCCESS
+Backup Size: 32.4 GB
+------------------------------------------------------------
+Job Name: VM-Nightly-Backup
+Server: backup01.example.local
+Start Time: 2026-08-23 03:30:00
+End Time: 2026-08-23 04:04:00
+Status: SUCCESS
+VM Name: FILE01
+Result: SUCCESS
+Backup Size: 66.6 GB
+VM Name: DATABASE01
+Result: SUCCESS
+Backup Size: 61.6 GB
+VM Name: DATABASE01
+Result: SUCCESS
+Backup Size: 141.6 GB
+------------------------------------------------------------
+Job Name: VM-Nightly-Backup
+Server: backup01.example.local
+Start Time: 2026-08-23 04:30:00
+End Time: 2026-08-23 04:50:00
+Status: SUCCESS
+VM Name: RDS01
+Result: SUCCESS
+Backup Size: 22.0 GB
+VM Name: FILE01
+Result: SUCCESS
+Backup Size: 121.9 GB
+------------------------------------------------------------
+Job Name: Weekly-Full
+Server: pbs01.example.local
+Start Time: 2026-08-23 05:30:00
+End Time: 2026-08-23 06:06:00
+Status: FAILED
+VM Name: WEB01
+Result: SUCCESS
+Backup Size: 67.4 GB
+VM Name: DC01
+Result: WARNING
+Backup Size: 124.7 GB
+Message: Snapshot cleanup completed with warnings.
+VM Name: APP01
+Result: FAILED
+Backup Size: 98.6 GB
+Error: Snapshot could not be created.
+------------------------------------------------------------
+Job Name: DB-Daily
+Server: pbs01.example.local
+Start Time: 2026-08-23 06:30:00
+End Time: 2026-08-23 07:18:00
+Status: SUCCESS
+VM Name: DC01
+Result: SUCCESS
+Backup Size: 43.2 GB
+VM Name: WEB01
+Result: SUCCESS
+Backup Size: 140.0 GB
+------------------------------------------------------------
+Job Name: FileServer-Backup
+Server: pbs01.example.local
+Start Time: 2026-08-23 07:30:00
+End Time: 2026-08-23 07:47:00
+Status: WARNING
+VM Name: FILE01
+Result: FAILED
+Backup Size: 38.2 GB
+Error: Permission denied writing backup archive.
+VM Name: APP01
+Result: SUCCESS
+Backup Size: 94.0 GB
+------------------------------------------------------------

@@ -1,0 +1,5 @@
+timestamp,host,user,source_ip,destination_ip,event_type,message
+2026-06-21T06:20:00,branch-gateway-01,demo.user,198.51.100.20,203.0.113.80,authentication_failure,failed login detected on remote access gateway
+2026-06-21T06:25:00,file-server-02,,198.51.100.50,203.0.113.120,backup_failure,backup failed during verification cycle
+2026-06-21T06:30:00,endpoint-17,demo.operator,192.0.2.55,203.0.113.200,malware_activity,critical malware alert on workstation
+2026-06-21T06:40:00,erp-app-01,,198.51.100.88,203.0.113.210,availability_issue,application timeout warning and degraded response

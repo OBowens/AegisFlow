@@ -1,0 +1,781 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}Incident Detail | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro incident-page-intro">
+    <div class="page-intro__copy">
+        <p class="af-eyebrow">WORK QUEUE / INCIDENT INVESTIGATION</p><h1>{{ incident.title }}</h1>
+        <nav class="incident-breadcrumbs" aria-label="Breadcrumb">
+            <a href="{% url 'core:index' %}">Dashboard</a>
+            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+            <span>Incident Detail</span>
+        </nav>
+    </div>
+    <div class="page-intro__meta">
+        <div class="updated-chip">
+            <span>Last updated: {{ dashboard_updated_at }}</span>
+            <button class="icon-button icon-button--soft" type="button" aria-label="Refresh incident detail" data-dashboard-refresh>
+                <svg class="icon"><use href="#icon-refresh"></use></svg>
+            </button>
+        </div>
+    </div>
+</section>
+
+<section class="dashboard-panel incident-hero">
+<div class="af-incident-steps" aria-label="Incident workflow"><span class="is-active"><b>1</b><strong>Understand</strong><small>Review AI findings</small></span><span><b>2</b><strong>Verify</strong><small>Validate the issue</small></span><span><b>3</b><strong>Respond</strong><small>Take action</small></span><span><b>4</b><strong>Confirm</strong><small>Check improvement</small></span><span><b>5</b><strong>Close</strong><small>Document and close</small></span></div>
+    <div class="incident-hero__top">
+        <div class="incident-hero__badge incident-hero__badge--{{ incident_severity }}">
+            {% if incident_severity == "critical" %}
+                <svg class="icon"><use href="#icon-critical"></use></svg>
+            {% else %}
+                <svg class="icon"><use href="#icon-warning"></use></svg>
+            {% endif %}
+        </div>
+
+        <div class="incident-hero__copy">
+            <h2>{{ incident.title }}</h2>
+            <div class="incident-hero__chips">
+                <div class="incident-meta-chip-group">
+                    <span>Severity</span>
+                    <span class="severity-pill severity-pill--{{ incident_severity }}">{{ incident.get_severity_display }}</span>
+                </div>
+                <div class="incident-meta-chip-group">
+                    <span>Status</span>
+                    <span class="incident-status-pill incident-status-pill--{{ incident.status }}">{{ incident.get_status_display }}</span>
+                    <form method="post" action="{{ status_update_url }}" class="incident-status-form">
+                        {% csrf_token %}
+                        <select name="status" class="upload-select" data-auto-submit aria-label="Update incident status">
+                            {% for value, label in status_options %}
+                                <option value="{{ value }}" {% if incident.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
+                <div class="incident-meta-chip-group">
+                    <span>Incident Type</span>
+                    <span class="incident-meta-chip">{{ incident.incident_type }}</span>
+                </div>
+                <div class="incident-meta-chip-group">
+                    <span>Affected System</span>
+                    <span class="incident-meta-chip incident-meta-chip--blue">{{ primary_system }}</span>
+                </div>
+                <div class="incident-meta-chip-group">
+                    <span>Critical System Match</span>
+                    {% if critical_system_match.matched %}
+                        <span class="severity-pill severity-pill--{{ critical_system_match.criticality }}">{{ critical_system_match.criticality_label }}</span>
+                    {% else %}
+                        <span class="incident-meta-chip">Not a recognized critical system</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="incident-hero__actions">
+            <form method="post" action="{{ analyze_url }}" style="display:contents" data-ai-action>
+                {% csrf_token %}
+                <button class="incident-action-button" type="submit">
+                    <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                    <span>Ask AI to Analyze</span>
+                </button>
+            </form>
+            <a class="incident-action-button" href="{{ playbook_url }}">
+                <svg class="icon"><use href="#icon-playbook"></use></svg>
+                <span>Generate Playbook</span>
+            </a>
+            <a class="incident-action-button incident-action-button--teal" href="{{ readiness_url }}">
+                <svg class="icon"><use href="#icon-readiness-nav"></use></svg>
+                <span>Assess Disaster Impact</span>
+            </a>
+            <a class="incident-action-button" href="{{ report_url }}">
+                <svg class="icon"><use href="#icon-reports-nav"></use></svg>
+                <span>{% if primary_report %}View Report{% else %}View Reports{% endif %}</span>
+            </a>
+            <button class="icon-button icon-button--ghost incident-action-more" type="button" aria-label="More incident actions">
+                <svg class="icon"><use href="#icon-more-vertical"></use></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="incident-hero__meta">
+        <div class="incident-hero-fact">
+            <svg class="icon"><use href="#icon-calendar"></use></svg>
+            <div>
+                <span>Detected</span>
+                <strong>{{ incident_detected_at }}</strong>
+            </div>
+        </div>
+        <div class="incident-hero-fact">
+            <svg class="icon"><use href="#icon-user-outline"></use></svg>
+            <div>
+                <span>Detected By</span>
+                <strong>{{ BRAND_NAME }}</strong>
+            </div>
+        </div>
+        <div class="incident-hero-fact">
+            <svg class="icon"><use href="#icon-clock"></use></svg>
+            <div>
+                <span>Duration</span>
+                <strong>{{ incident_duration }}</strong>
+            </div>
+        </div>
+        <div class="incident-hero-fact">
+            <svg class="icon"><use href="#icon-building"></use></svg>
+            <div>
+                <span>Organization</span>
+                <strong>{{ incident.organization.name }}</strong>
+            </div>
+        </div>
+        <div class="incident-hero-fact">
+            <svg class="icon"><use href="#icon-tag"></use></svg>
+            <div>
+                <span>Incident ID</span>
+                <strong>{{ incident_identifier }}</strong>
+            </div>
+        </div>
+        {% if critical_system_match.matched %}
+            <div class="incident-hero-fact">
+                <svg class="icon"><use href="#icon-user-outline"></use></svg>
+                <div>
+                    <span>System Owner</span>
+                    <strong>{{ critical_system_match.owner_summary }}</strong>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<nav class="tabs" role="tablist" aria-label="Incident detail sections" data-tabs>
+    <button class="tabs__btn is-active" type="button" role="tab" aria-selected="true" data-tab-target="overview">Overview</button>
+    <button class="tabs__btn" type="button" role="tab" aria-selected="false" data-tab-target="timeline">Timeline</button>
+    <button class="tabs__btn" type="button" role="tab" aria-selected="false" data-tab-target="evidence">Evidence</button>
+    <button class="tabs__btn" type="button" role="tab" aria-selected="false" data-tab-target="affected-systems">Affected Systems</button>
+</nav>
+
+<div class="tab-panel" data-tab-panel="overview">
+
+<section class="dashboard-panel incident-ai-summary">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>AI Summary</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>{{ incident_summary }}</p>
+    </div>
+</section>
+
+<section class="dashboard-panel incident-detail-panel" id="severity-gauge-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <h2>
+            <svg class="icon"><use href="#icon-incident-nav"></use></svg>
+            <span>Severity &amp; Risk</span>
+        </h2>
+    </div>
+
+    <div class="incident-severity-gauge-row">
+        <div
+            class="ring-gauge ring-gauge--lg ring-gauge--{{ incident_severity }}"
+            style="--progress: {% if incident_severity == 'critical' %}100{% elif incident_severity == 'high' %}75{% elif incident_severity == 'medium' %}50{% else %}25{% endif %};"
+        >
+            <svg class="ring-gauge__svg" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-gauge__track" cx="60" cy="60" r="52" pathLength="100"></circle>
+                <circle class="ring-gauge__value" cx="60" cy="60" r="52" pathLength="100"></circle>
+            </svg>
+            <div class="ring-gauge__content">
+                <strong>{{ incident.get_severity_display }}</strong>
+                <span>Severity</span>
+            </div>
+        </div>
+
+        <div class="incident-risk-rings">
+            {% for row in risk_snapshot.rows %}
+                <div
+                    class="ring-gauge ring-gauge--sm ring-gauge--{{ row.value }}"
+                    style="--progress: {% if row.value == 'critical' %}100{% elif row.value == 'high' %}75{% elif row.value == 'medium' %}50{% else %}25{% endif %};"
+                >
+                    <svg class="ring-gauge__svg" viewBox="0 0 120 120" aria-hidden="true">
+                        <circle class="ring-gauge__track" cx="60" cy="60" r="52" pathLength="100"></circle>
+                        <circle class="ring-gauge__value" cx="60" cy="60" r="52" pathLength="100"></circle>
+                    </svg>
+                    <div class="ring-gauge__content">
+                        <strong>{{ row.value_label }}</strong>
+                        <span>{{ row.label }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <p class="incident-risk-text">{{ risk_snapshot.reasoning }}</p>
+</section>
+
+<section class="dashboard-panel incident-detail-panel" id="key-findings-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <h2>
+            <svg class="icon"><use href="#icon-gaps"></use></svg>
+            <span>Key Findings</span>
+        </h2>
+    </div>
+
+    {% if gap_cards %}
+        <div class="status-list">
+            {% for gap in gap_cards %}
+                <div class="status-row">
+                    <span class="status-row__dot status-row__dot--{{ gap.priority }}"></span>
+                    <span class="status-row__label">{{ gap.title }}</span>
+                    <span class="status-row__value">{{ gap.priority_label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No findings yet</h3>
+            <p>Key findings will appear here once gaps are detected for this incident.</p>
+        </div>
+    {% endif %}
+</section>
+
+{% if analysis_result %}
+<section class="dashboard-panel incident-ai-summary" id="ai-analysis-result">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>AI Analysis</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>{{ analysis_result.analysis|linebreaksbr }}</p>
+        <p class="incident-ai-summary__meta">
+            Model: {{ analysis_result.model }} &middot; Generated: {{ analysis_result.generated_at }}
+        </p>
+    </div>
+</section>
+{% elif analysis_error %}
+<section class="dashboard-panel incident-ai-summary" id="ai-analysis-error">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-warning"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>AI Analysis</span>
+        </h2>
+        <p>{{ analysis_error }}</p>
+    </div>
+</section>
+{% endif %}
+
+<section class="dashboard-panel incident-ai-summary" id="incident-plain-language">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>Explain in Plain Language</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>Get a jargon-free explanation of this incident for a non-technical reader.</p>
+
+        <form method="post" action="{{ explain_plain_language_url }}" data-ai-action>
+            {% csrf_token %}
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>Explain in Plain Language</span>
+            </button>
+        </form>
+
+        {% if plain_language_error %}
+            <p class="incident-ai-summary__meta">{{ plain_language_error }}</p>
+        {% elif plain_language_result %}
+            <p>{{ plain_language_result.explanation|linebreaksbr }}</p>
+            <p class="incident-ai-summary__meta">
+                Model: {{ plain_language_result.model }} &middot; Generated: {{ plain_language_result.generated_at }}
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="dashboard-panel incident-ai-summary" id="incident-management-summary">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>What Should I Tell Management?</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>Get a business-impact-framed summary of this incident for an executive audience.</p>
+
+        <form method="post" action="{{ explain_management_url }}" data-ai-action>
+            {% csrf_token %}
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>What Should I Tell Management?</span>
+            </button>
+        </form>
+
+        {% if management_error %}
+            <p class="incident-ai-summary__meta">{{ management_error }}</p>
+        {% elif management_result %}
+            <p>{{ management_result.explanation|linebreaksbr }}</p>
+            <p class="incident-ai-summary__meta">
+                Model: {{ management_result.model }} &middot; Generated: {{ management_result.generated_at }}
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="dashboard-panel incident-ai-summary" id="incident-technical-report">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-reports-nav"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>Technical Report</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>Generate a technical write-up of this incident's evidence and findings for the security team's own records.</p>
+
+        <form method="post" action="{{ generate_technical_report_url }}" data-ai-action>
+            {% csrf_token %}
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>Generate Technical Report</span>
+            </button>
+        </form>
+
+        {% if technical_report_error %}
+            <p class="incident-ai-summary__meta">{{ technical_report_error }}</p>
+        {% elif technical_report_result %}
+            <p>{{ technical_report_result.report_text|linebreaksbr }}</p>
+            <p class="incident-ai-summary__meta">
+                Generated: {{ technical_report_result.generated_at }}
+                &middot; <a href="{{ technical_report_result.detail_url }}">View full report</a>
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="dashboard-panel incident-ai-summary" id="incident-incident-report">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-reports-nav"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>Incident Report</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>Generate a formal case report documenting this incident for the record.</p>
+
+        <form method="post" action="{{ generate_incident_report_url }}" data-ai-action>
+            {% csrf_token %}
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>Generate Incident Report</span>
+            </button>
+        </form>
+
+        {% if incident_report_error %}
+            <p class="incident-ai-summary__meta">{{ incident_report_error }}</p>
+        {% elif incident_report_result %}
+            <p>{{ incident_report_result.report_text|linebreaksbr }}</p>
+            <p class="incident-ai-summary__meta">
+                Generated: {{ incident_report_result.generated_at }}
+                &middot; <a href="{{ incident_report_result.detail_url }}">View full report</a>
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="dashboard-panel incident-ai-summary" id="incident-qa">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>Ask a Question</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <form method="post" action="{{ ask_url }}" class="incident-qa-form" data-ai-action>
+            {% csrf_token %}
+            <input
+                type="text"
+                name="question"
+                class="upload-select"
+                placeholder="Ask a question about this incident's evidence..."
+                required
+            >
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>Ask</span>
+            </button>
+        </form>
+
+        {% if qa_error %}
+            <p class="incident-ai-summary__meta">{{ qa_error }}</p>
+        {% endif %}
+
+        {% if qa_thread %}
+            <ul class="incident-qa-thread">
+                {% for qa in qa_thread %}
+                    <li class="incident-qa-thread__item">
+                        <p class="incident-qa-thread__question"><strong>Q:</strong> {{ qa.question }}</p>
+                        <p class="incident-qa-thread__answer"><strong>A:</strong> {{ qa.answer|linebreaksbr }}</p>
+                        <p class="incident-ai-summary__meta">
+                            Model: {{ qa.model }} &middot; Asked: {{ qa.asked_at }}
+                        </p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+</section>
+
+
+{% if prior_source_ip_matches %}
+<section class="dashboard-panel incident-source-ip-banner" id="prior-source-ip-matches">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <h2>
+            <svg class="icon"><use href="#icon-warning"></use></svg>
+            <span>Related Prior Activity</span>
+        </h2>
+        <span class="severity-pill severity-pill--medium">{{ prior_source_ip_matches.count }} PRIOR INCIDENT{{ prior_source_ip_matches.count|pluralize }}</span>
+    </div>
+    <p>{{ prior_source_ip_matches.headline }}</p>
+    <ul class="incident-evidence-list">
+        {% for match in prior_source_ip_matches.items %}
+            <li>
+                <span class="incident-evidence-dot"></span>
+                <span>{{ match.detected_display }}</span>
+                <strong>{{ match.source_ip }}</strong>
+                <a class="link-inline" href="{{ match.incident_url }}">
+                    <span>{{ match.incident_title }}</span>
+                    <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                </a>
+                <form method="post" action="{{ compare_url }}" style="display:contents" data-ai-action>
+                    {% csrf_token %}
+                    <input type="hidden" name="other_incident_id" value="{{ match.incident_id }}">
+                    <button class="incident-action-button" type="submit">
+                        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                        <span>Compare</span>
+                    </button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="dashboard-panel incident-ai-summary" id="incident-compare">
+    <div class="incident-ai-summary__icon">
+        <svg class="icon"><use href="#icon-sparkles"></use></svg>
+    </div>
+    <div class="incident-ai-summary__copy">
+        <h2>
+            <span>Compare with Another Incident</span>
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+        </h2>
+        <p>Ask AI whether this incident and another one are likely related, or just coincidental.</p>
+
+        <form method="post" action="{{ compare_url }}" class="incident-qa-form" data-ai-action>
+            {% csrf_token %}
+            <input
+                type="number"
+                name="other_incident_id"
+                class="upload-select"
+                placeholder="Incident ID to compare with..."
+                min="1"
+                required
+            >
+            <button class="incident-action-button" type="submit">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>Compare Incidents</span>
+            </button>
+        </form>
+
+        {% if comparison_error %}
+            <p class="incident-ai-summary__meta">{{ comparison_error }}</p>
+        {% endif %}
+
+        {% if comparison_thread %}
+            <ul class="incident-qa-thread">
+                {% for comparison in comparison_thread %}
+                    <li class="incident-qa-thread__item">
+                        <p class="incident-qa-thread__question">
+                            <strong>Compared with:</strong>
+                            <a class="link-inline" href="{{ comparison.compared_incident_url }}">
+                                <span>Incident #{{ comparison.compared_incident_id }} -- {{ comparison.compared_incident_title }}</span>
+                                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                            </a>
+                        </p>
+                        <p class="incident-qa-thread__answer">{{ comparison.comparison|linebreaksbr }}</p>
+                        <p class="incident-ai-summary__meta">
+                            Model: {{ comparison.model }} &middot; Generated: {{ comparison.generated_at }}
+                        </p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+</section>
+
+<article class="dashboard-panel incident-detail-panel" id="next-actions-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <h2>
+            <svg class="icon"><use href="#icon-checklist"></use></svg>
+            <span>Recommended Next Actions</span>
+        </h2>
+    </div>
+
+    <form method="post" action="{{ generate_playbook_url }}" class="incident-actions-generate-form" data-ai-action>
+        {% csrf_token %}
+        <button class="incident-action-button" type="submit">
+            <svg class="icon"><use href="#icon-sparkles"></use></svg>
+            <span>Generate AI Playbook</span>
+        </button>
+    </form>
+
+    {% if playbook_error %}
+        <p class="incident-ai-summary__meta">{{ playbook_error }}</p>
+    {% endif %}
+
+    {% if recommended_actions.items %}
+        <ol class="incident-actions-list">
+            {% for action in recommended_actions.items %}
+                <li class="incident-actions-list__item">
+                    <span class="incident-actions-list__number">{{ action.number }}</span>
+                    <div class="incident-actions-list__copy">
+                        <p>{{ action.text }}</p>
+                        <div class="incident-actions-list__badges">
+                            {% if action.is_ai_generated %}
+                                <span class="playbook-step-ai-badge">
+                                    <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                                    <span>AI-generated</span>
+                                </span>
+                            {% endif %}
+                            {% if action.requires_approval %}
+                                <span class="playbook-step-approval-badge">
+                                    <svg class="icon"><use href="#icon-warning"></use></svg>
+                                    <span>Requires human approval</span>
+                                </span>
+                            {% endif %}
+                            <span class="playbook-step-status playbook-step-status--{{ action.status_key }}">{{ action.status_label }}</span>
+                            <span class="severity-pill severity-pill--{{ action.urgency_pill_key }}">{{ action.urgency_label }}</span>
+                        </div>
+                    </div>
+                    <form method="post" action="{{ action.status_update_url }}" class="playbook-step-status-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ incident_detail_url }}#next-actions-panel">
+                        <select name="status" class="upload-select" data-auto-submit aria-label="Update status for step {{ action.number }}">
+                            {% for value, label in step_status_options %}
+                                <option value="{{ value }}" {% if action.status_value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </li>
+            {% endfor %}
+        </ol>
+
+        <div class="dashboard-panel__footer">
+            {% if recommended_actions.done_count %}
+                <span class="incident-actions-list__done-note">
+                    {{ recommended_actions.done_count }} step{{ recommended_actions.done_count|pluralize }} already completed &middot;
+                </span>
+            {% endif %}
+            <a class="link-inline" href="{{ playbook_page_url }}">
+                <span>View full playbook</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    {% elif recommended_actions.all_done %}
+        <div class="empty-state">
+            <h3>All response actions complete</h3>
+            <p>Every step in this incident's playbook is completed or skipped.</p>
+            <a class="link-inline" href="{{ playbook_page_url }}">
+                <span>View full playbook</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No response actions yet</h3>
+            <p>Generate a response playbook to populate recommended actions for this incident.</p>
+        </div>
+    {% endif %}
+</article>
+
+</div>
+
+<div class="tab-panel" data-tab-panel="timeline" hidden>
+    <article class="dashboard-panel incident-detail-panel">
+        <div class="dashboard-panel__head incident-detail-panel__head">
+            <h2>
+                <svg class="icon"><use href="#icon-clock"></use></svg>
+                <span>Timeline</span>
+            </h2>
+        </div>
+
+        {% if evidence_groups %}
+            <ol class="incident-timeline">
+                {% for group in evidence_groups %}
+                    {% for item in group.items %}
+                        <li class="incident-timeline__item">
+                            <span class="incident-timeline__dot"></span>
+                            <span class="incident-timeline__time">{{ item.time_display }}</span>
+                            <div class="incident-timeline__copy">
+                                <strong>{{ item.detail }}</strong>
+                                <span>{{ group.title }}</span>
+                            </div>
+                        </li>
+                    {% endfor %}
+                {% endfor %}
+            </ol>
+        {% else %}
+            <div class="empty-state">
+                <h3>No timeline yet</h3>
+                <p>Evidence timestamps will appear here once alerts are linked to this incident.</p>
+            </div>
+        {% endif %}
+    </article>
+</div>
+
+<div class="tab-panel" data-tab-panel="evidence" hidden>
+<section class="incident-evidence-grid">
+    <article class="dashboard-panel incident-detail-panel" id="evidence-panel">
+        <div class="dashboard-panel__head incident-detail-panel__head">
+            <h2>
+                <svg class="icon"><use href="#icon-logs"></use></svg>
+                <span>Evidence</span>
+            </h2>
+        </div>
+
+        {% if evidence_groups %}
+            <div class="incident-evidence-groups">
+                {% for group in evidence_groups %}
+                    <section class="incident-evidence-group">
+                        <div class="incident-evidence-group__head">
+                            <h3>{{ group.title }}</h3>
+                            <span class="incident-count-pill">{{ group.count }}</span>
+                        </div>
+                        <ul class="incident-evidence-list">
+                            {% for item in group.items %}
+                                <li>
+                                    <span class="incident-evidence-dot"></span>
+                                    <span>{{ item.time_display }}</span>
+                                    <strong>{{ item.detail }}</strong>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </section>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>No evidence linked yet</h3>
+                <p>Related evidence alerts will appear here once the workflow groups them into this incident.</p>
+            </div>
+        {% endif %}
+
+        <div class="dashboard-panel__footer">
+            <a class="link-inline" href="{% url 'incidents:evidence' incident.id %}">
+                <span>View Evidence</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    </article>
+
+    <article class="dashboard-panel incident-detail-panel" id="gap-panel">
+        <div class="dashboard-panel__head incident-detail-panel__head">
+            <h2>
+                <svg class="icon"><use href="#icon-gaps"></use></svg>
+                <span>Detected Gaps</span>
+            </h2>
+        </div>
+
+        {% if gap_cards %}
+            <div class="incident-gap-list">
+                {% for gap in gap_cards %}
+                    <section class="incident-gap-card">
+                        <div class="incident-gap-card__icon incident-gap-card__icon--{{ gap.priority }}">
+                            <svg class="icon"><use href="#icon-warning"></use></svg>
+                        </div>
+                        <div class="incident-gap-card__copy">
+                            <h3>{{ gap.title }}</h3>
+                            <p>{{ gap.description }}</p>
+                        </div>
+                    </section>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>No gaps detected</h3>
+                <p>This incident does not yet have mapped control gaps.</p>
+            </div>
+        {% endif %}
+
+        <div class="dashboard-panel__footer">
+            <a class="link-inline" href="{% url 'incidents:gaps' incident.id %}">
+                <span>View Gaps</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    </article>
+</section>
+</div>
+
+<div class="tab-panel" data-tab-panel="affected-systems" hidden>
+    <article class="dashboard-panel incident-detail-panel">
+        <div class="dashboard-panel__head incident-detail-panel__head">
+            <h2>
+                <svg class="icon"><use href="#icon-device"></use></svg>
+                <span>Affected Systems</span>
+            </h2>
+        </div>
+
+        <div class="status-list">
+            <div class="status-row">
+                <span class="status-row__dot status-row__dot--{% if critical_system_match.matched %}{{ critical_system_match.criticality }}{% else %}good{% endif %}"></span>
+                <span class="status-row__label">Primary System</span>
+                <span class="status-row__value">{{ primary_system }}</span>
+            </div>
+            <div class="status-row">
+                <span class="status-row__dot status-row__dot--{% if critical_system_match.matched %}{{ critical_system_match.criticality }}{% else %}good{% endif %}"></span>
+                <span class="status-row__label">Critical System Match</span>
+                <span class="status-row__value">
+                    {% if critical_system_match.matched %}{{ critical_system_match.criticality_label }}{% else %}Not a recognized critical system{% endif %}
+                </span>
+            </div>
+            {% if critical_system_match.matched %}
+                <div class="status-row">
+                    <span class="status-row__dot status-row__dot--good"></span>
+                    <span class="status-row__label">System Owner</span>
+                    <span class="status-row__value">{{ critical_system_match.owner_summary }}</span>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if incident.affected_systems %}
+            <p class="incident-risk-text">{{ incident.affected_systems }}</p>
+        {% endif %}
+    </article>
+</div>
+
+<section class="preparedness-banner" data-preparedness-banner>
+    <div class="preparedness-banner__icon">
+        <svg class="icon"><use href="#icon-shield-check"></use></svg>
+    </div>
+    <div class="preparedness-banner__copy">
+        <h2>{{ preparedness_banner_title }}</h2>
+        <p>{{ preparedness_banner_text }}</p>
+    </div>
+    <div class="preparedness-banner__actions">
+        <a class="button-outline" href="{{ playbook_url }}">Review Playbook</a>
+        <button class="icon-button icon-button--ghost" type="button" aria-label="Dismiss preparedness reminder" data-preparedness-close>
+            <svg class="icon"><use href="#icon-close"></use></svg>
+        </button>
+    </div>
+</section>
+{% endblock %}

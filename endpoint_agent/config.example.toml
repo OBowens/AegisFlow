@@ -1,0 +1,65 @@
+# AegisFlow Windows endpoint agent -- example configuration.
+# Copy to config.toml and edit. The Part 4 installer instead generates a
+# minimal config.toml with `aegis-agent write-config` from its two
+# prompts (token, endpoint name); every key it omits keeps the default
+# shown here.
+
+[server]
+# Base URL of the AegisFlow backend. No trailing slash needed.
+base_url = "https://aegisflow.example.org"
+# The enrollment token from `manage.py createendpoint` (shown once).
+# Leave blank here and set the AEGIS_AGENT_TOKEN environment variable
+# instead if you would rather not keep the secret in this file.
+enrollment_token = ""
+
+[agent]
+# The name this endpoint asks to be known by. If another endpoint in the
+# organization already uses it, the server appends -2/-3/... and the
+# agent logs the effective name.
+display_name = "WIN-PILOT-01"
+
+# Seconds between batch sends, chosen randomly in this range each cycle.
+send_interval_seconds = [60, 120]
+
+# Client-side batch limits (the server hard-caps at 500 events / request).
+max_batch = 250
+max_batch_bytes = 1000000
+
+# Soft cap on the on-disk buffer. Reached only during a long backend
+# outage (a tick drains at backend speed, not one batch, so a healthy
+# backend keeps this near zero). When full, the agent stops reading new
+# events and leaves them in the Windows Event Log until the buffer
+# drains -- nothing is dropped. Only a Windows Event Log that itself
+# rotates past un-read events causes loss, and that is logged loudly
+# with a count.
+buffer_max_events = 50000
+
+# Where pending.jsonl, state.json and rejected/ live. On Windows this
+# should be somewhere the service account can write, e.g.
+# "C:\\ProgramData\\AegisFlow\\agent". Defaults to ./_agent_state next
+# to this file.
+state_dir = ""
+
+[logging]
+level = "INFO"
+# Rotating log file. Blank = stderr only.
+file = ""
+
+[filters]
+# Names of built-in rules to turn off. Available:
+#   canonical_4688_system_noise, empty_powershell_script_block,
+#   allowlisted_powershell_script_block, configured_extra_suppression
+disabled_rules = []
+
+# Exact PowerShell script-block texts (whitespace-collapsed) to suppress.
+# Empty by default -- add an entry only after confirming on your fleet
+# that it is benign and high-volume.
+allowlist_script_blocks = []
+
+# Extra local suppression rules. Every key present in an entry must match.
+# Keys: event_id, new_process_name, parent_process_name,
+# command_line_contains, script_block_contains, path_equals, reason.
+# extra_suppress = [
+#   { event_id = 4688, new_process_name = "MpCmdRun.exe", parent_process_name = "MsMpEng.exe", reason = "Defender signature update helper" },
+# ]
+extra_suppress = []

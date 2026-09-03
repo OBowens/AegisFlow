@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}CaribSecure AI{% endblock %}</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6f8fb;
+            --panel: #ffffff;
+            --border: #d8dfeb;
+            --text: #172033;
+            --muted: #5c6983;
+            --primary: #163d8f;
+            --primary-soft: #e8efff;
+            --success: #0e7c42;
+            --success-soft: #eaf8f0;
+            --error: #b42318;
+            --error-soft: #fff0ee;
+            --warning-soft: #fff8e1;
+            --shadow: 0 18px 45px rgba(24, 40, 72, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #eef3ff 0%, var(--bg) 40%, #f9fbfe 100%);
+            color: var(--text);
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 28px;
+            padding: 18px 22px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(216, 223, 235, 0.8);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 1.45rem;
+        }
+
+        .brand p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav a {
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            font-weight: 600;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 28px;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        .page-header p {
+            margin: 10px 0 0;
+            color: var(--muted);
+            max-width: 760px;
+            line-height: 1.55;
+        }
+
+        .messages {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 22px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .messages li {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+        }
+
+        .messages .success {
+            background: var(--success-soft);
+            border-color: #b7e4c7;
+            color: var(--success);
+        }
+
+        .messages .error {
+            background: var(--error-soft);
+            border-color: #f3b4ae;
+            color: var(--error);
+        }
+
+        .messages .warning {
+            background: var(--warning-soft);
+        }
+
+        .grid {
+            display: grid;
+            gap: 22px;
+        }
+
+        .grid.two {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .button,
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 18px;
+            border: 0;
+            border-radius: 12px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .button.secondary {
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+
+        .button.disabled {
+            background: #e4e7ee;
+            color: #7c879a;
+            pointer-events: none;
+        }
+
+        form {
+            display: grid;
+            gap: 18px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font: inherit;
+            background: #fff;
+        }
+
+        .helptext {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .errorlist {
+            margin: 8px 0 0;
+            padding-left: 18px;
+            color: var(--error);
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            background: #fff;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 14px;
+        }
+
+        .stat {
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        }
+
+        .stat strong {
+            display: block;
+            font-size: 1.4rem;
+            margin-top: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f7f9fd;
+            font-size: 0.92rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            background: var(--primary-soft);
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .empty-state {
+            padding: 28px;
+            border: 1px dashed var(--border);
+            border-radius: 16px;
+            text-align: center;
+            color: var(--muted);
+            background: #fbfcfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <div class="brand">
+                <h1>CaribSecure AI</h1>
+                <p>Competition MVP for manual sample log uploads and structured cyber resilience analysis.</p>
+            </div>
+            <nav class="nav">
+                <a href="{% url 'core:index' %}">Home</a>
+                <a href="{% url 'log_intake:index' %}">Log Intake</a>
+                <a href="{% url 'log_intake:file_list' %}">Uploaded Files</a>
+                <a href="{% url 'incidents:index' %}">Incidents</a>
+                <a href="{% url 'reports:index' %}">Reports</a>
+            </nav>
+        </header>
+
+        <main class="panel">
+            {% if messages %}
+                <ul class="messages">
+                    {% for message in messages %}
+                        <li class="{{ message.tags|default:'info' }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

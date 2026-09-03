@@ -1,0 +1,40 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Reports | CaribSecure AI{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <h2>{{ page_title }}</h2>
+    <p>{{ page_description }}</p>
+</section>
+
+{% if reports %}
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Organization</th>
+                <th>Incident</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+                <tr>
+                    <td><a href="{% url 'reports:detail' report.id %}">{{ report.title }}</a></td>
+                    <td>{{ report.get_report_type_display }}</td>
+                    <td>{{ report.organization.name }}</td>
+                    <td>{{ report.incident.title|default:"Upload-wide summary" }}</td>
+                    <td>{{ report.created_at }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div class="empty-state">
+        <p>No reports have been created yet.</p>
+        <a class="button" href="{% url 'log_intake:upload' %}">Run a Demo Upload</a>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,366 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}Audit History | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro audit-page-intro">
+    <div class="page-intro__copy">
+        <h1>{{ page_title }}</h1>
+        <p class="af-mode-copy af-business-only">A record of important activity in AegisFlow.</p><p class="af-mode-copy af-soc-only">Detailed record of user actions, security activity, and system changes.</p>
+    </div>
+    <div class="page-intro__meta">
+        <div class="updated-chip">
+            <span>Last updated: {{ dashboard_updated_at }}</span>
+            <button class="icon-button icon-button--soft" type="button" aria-label="Refresh audit history" data-dashboard-refresh>
+                <svg class="icon"><use href="#icon-refresh"></use></svg>
+            </button>
+        </div>
+    </div>
+</section>
+
+<section class="audit-metrics-grid" aria-label="Audit overview metrics">
+    {% for metric in audit_metrics %}
+        <article class="metric-card audit-metric-card">
+            <div class="metric-card__top">
+                <p class="metric-card__label">{{ metric.title }}</p>
+                <div class="metric-card__icon metric-card__icon--{{ metric.accent }}">
+                    <svg class="icon"><use href="#icon-{{ metric.icon }}"></use></svg>
+                </div>
+            </div>
+            <div class="metric-card__value-row">
+                <h2 class="metric-card__value">{{ metric.value }}</h2>
+            </div>
+            <div class="metric-card__trend" data-tone="{{ metric.direction }}">
+                <svg class="icon trend-icon {% if metric.direction == 'down' %}trend-icon--down{% endif %}">
+                    <use href="#icon-arrow-right"></use>
+                </svg>
+                <span>{{ metric.note }}</span>
+            </div>
+        </article>
+    {% endfor %}
+</section>
+
+<form class="dashboard-panel audit-filter-panel" method="get">
+    <div class="audit-filter-grid">
+        <label class="audit-filter-field">
+            <span>Date Range</span>
+            <select name="range" onchange="this.form.submit()">
+                {% for option in date_range_options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="audit-filter-field">
+            <span>User</span>
+            <select name="user" onchange="this.form.submit()">
+                {% for option in user_options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="audit-filter-field">
+            <span>Action Type</span>
+            <select name="action" onchange="this.form.submit()">
+                {% for option in action_type_options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="audit-filter-field">
+            <span>AI Module</span>
+            <select name="module" onchange="this.form.submit()">
+                {% for option in module_options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="audit-filter-field">
+            <span>Severity</span>
+            <select name="severity" onchange="this.form.submit()">
+                {% for option in severity_options %}
+                    <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="audit-filter-actions">
+            <a class="results-primary-action audit-filter-button" href="{{ download_csv_url }}">
+                <svg class="icon"><use href="#icon-download"></use></svg>
+                <span>Download CSV</span>
+            </a>
+        </div>
+    </div>
+</form>
+
+<section class="audit-layout">
+    <div class="audit-main-column">
+        <article class="dashboard-panel audit-events-panel">
+            <div class="dashboard-panel__head audit-events-panel__head">
+                <div>
+                    <h2>Audit Events</h2>
+                </div>
+                <span class="panel-chip">{{ events_count }} events</span>
+            </div>
+
+            {% if event_rows %}
+                <div class="audit-events-table-wrap">
+                    <table class="audit-events-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Action / Description</th>
+                                <th>Module</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Event ID</th>
+                                <th class="audit-events-table__actions-col"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in event_rows %}
+                                <tr class="{% if row.is_selected %}is-selected{% endif %}">
+                                    <td class="audit-events-time-cell">
+                                        {% with row.time_label|linebreaksbr as formatted_time %}
+                                            {{ formatted_time }}
+                                        {% endwith %}
+                                    </td>
+                                    <td>
+                                        <div class="audit-user-cell">
+                                            <span class="audit-user-cell__avatar">{{ row.user_initials }}</span>
+                                            <span>{{ row.user_label }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="audit-action-cell">
+                                            <strong>{{ row.action_label }}</strong>
+                                            <p>{{ row.description }}</p>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="audit-module-cell audit-module-cell--{{ row.module_accent }}">
+                                            <svg class="icon"><use href="#icon-{{ row.module_icon }}"></use></svg>
+                                            <span>{{ row.module_label }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="severity-pill severity-pill--{{ row.severity_key }}">{{ row.severity_label }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="audit-status-pill audit-status-pill--{{ row.status_key }}">{{ row.status_label }}</span>
+                                    </td>
+                                    <td>{{ row.event_id }}</td>
+                                    <td class="audit-events-table__actions-col">
+                                        <a class="audit-row-open" href="{{ row.row_url }}" aria-label="Select event details">
+                                            <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="audit-table-footer">
+                    <span>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ events_count }} events</span>
+                    <div class="reports-pagination audit-pagination">
+                        <a class="reports-pagination__button {% if not pagination.prev_url %}is-disabled{% endif %}" href="{{ pagination.prev_url|default:'#' }}" {% if not pagination.prev_url %}aria-disabled="true"{% endif %}>
+                            <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                        </a>
+                        {% for item in pagination.items %}
+                            {% if item.is_ellipsis %}
+                                <span class="audit-pagination__ellipsis">...</span>
+                            {% else %}
+                                <a class="{% if item.is_active %}reports-pagination__page is-active{% else %}audit-pagination__page-link{% endif %}" href="{{ item.url }}">{{ item.number }}</a>
+                            {% endif %}
+                        {% endfor %}
+                        <a class="reports-pagination__button {% if not pagination.next_url %}is-disabled{% endif %}" href="{{ pagination.next_url|default:'#' }}" {% if not pagination.next_url %}aria-disabled="true"{% endif %}>
+                            <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <div class="empty-state audit-empty-state">
+                    <h3>No audit events yet</h3>
+                    <p>Uploads, AI runs, incident generation, reports, and user actions will appear here as the workflow is used.</p>
+                </div>
+            {% endif %}
+        </article>
+
+        <article class="dashboard-panel audit-trend-panel">
+            <div class="dashboard-panel__head audit-trend-panel__head">
+                <div class="audit-trend-panel__title">
+                    <h2>Activity Trend</h2>
+                    <span class="audit-trend-panel__info">i</span>
+                </div>
+                <div class="audit-trend-legend">
+                    {% for series in activity_trend.series %}
+                        <span class="audit-trend-legend__item">
+                            <span class="audit-trend-legend__dot audit-trend-legend__dot--{{ series.color_class }}"></span>
+                            <span>{{ series.label }}</span>
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="audit-chart">
+                <svg class="audit-chart__svg" viewBox="0 0 720 220" aria-hidden="true">
+                    <line x1="24" y1="150" x2="680" y2="150" class="audit-chart__axis"></line>
+                    <line x1="24" y1="22" x2="24" y2="150" class="audit-chart__axis"></line>
+
+                    {% for label in activity_trend.grid_labels %}
+                        {% with forloop.counter0 as index %}
+                            {% if index == 0 %}
+                                <line x1="24" y1="22" x2="680" y2="22" class="audit-chart__grid"></line>
+                                <text x="6" y="26" class="audit-chart__grid-label">{{ label }}</text>
+                            {% elif index == 1 %}
+                                <line x1="24" y1="64.5" x2="680" y2="64.5" class="audit-chart__grid"></line>
+                                <text x="6" y="68.5" class="audit-chart__grid-label">{{ label }}</text>
+                            {% elif index == 2 %}
+                                <line x1="24" y1="107" x2="680" y2="107" class="audit-chart__grid"></line>
+                                <text x="6" y="111" class="audit-chart__grid-label">{{ label }}</text>
+                            {% else %}
+                                <text x="14" y="154" class="audit-chart__grid-label">{{ label }}</text>
+                            {% endif %}
+                        {% endwith %}
+                    {% endfor %}
+
+                    {% for series in activity_trend.series %}
+                        <polyline class="audit-chart__line audit-chart__line--{{ series.color_class }}" points="{{ series.points }}"></polyline>
+                        {% for dot in series.dots %}
+                            <circle class="audit-chart__dot audit-chart__dot--{{ series.color_class }}" cx="{{ dot.cx }}" cy="{{ dot.cy }}" r="4"></circle>
+                        {% endfor %}
+                    {% endfor %}
+
+                    {% for day in activity_trend.days %}
+                        {% if forloop.counter0 == 0 %}
+                            <text x="24" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 1 %}
+                            <text x="117.71" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 2 %}
+                            <text x="211.43" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 3 %}
+                            <text x="305.14" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 4 %}
+                            <text x="398.86" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 5 %}
+                            <text x="492.57" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% elif forloop.counter0 == 6 %}
+                            <text x="586.29" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% else %}
+                            <text x="660" y="184" class="audit-chart__x-label">{{ day.label }}</text>
+                        {% endif %}
+                    {% endfor %}
+                </svg>
+            </div>
+        </article>
+    </div>
+
+    <aside class="dashboard-panel audit-detail-panel">
+        {% if selected_event %}
+            <div class="audit-detail-panel__top">
+                <div class="audit-detail-panel__title">
+                    <div class="audit-detail-panel__icon">
+                        <svg class="icon"><use href="#icon-audit"></use></svg>
+                    </div>
+                    <h2>Selected Event Details</h2>
+                </div>
+                <div class="audit-detail-panel__actions">
+                    <a href="{{ clear_selection_url }}">Clear Selection</a>
+                    <svg class="icon"><use href="#icon-close"></use></svg>
+                </div>
+            </div>
+
+            <dl class="audit-detail-list">
+                <div>
+                    <dt>Event ID</dt>
+                    <dd>{{ selected_event.event_id }}</dd>
+                </div>
+                <div>
+                    <dt>Time</dt>
+                    <dd>{{ selected_event.time_full }}</dd>
+                </div>
+                <div>
+                    <dt>User</dt>
+                    <dd>
+                        <span class="audit-detail-user">
+                            <span class="audit-user-cell__avatar">{{ selected_event.user_initials }}</span>
+                            <span>
+                                <strong>{{ selected_event.user_label }}</strong>
+                                {% if selected_event.user_email %}
+                                    <small>{{ selected_event.user_email }}</small>
+                                {% endif %}
+                            </span>
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Action</dt>
+                    <dd>{{ selected_event.action_label }}</dd>
+                </div>
+                <div>
+                    <dt>AI Module</dt>
+                    <dd class="audit-detail-module">
+                        <svg class="icon"><use href="#icon-{{ selected_event.module_icon }}"></use></svg>
+                        <span>{{ selected_event.module_label }}</span>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Severity</dt>
+                    <dd><span class="severity-pill severity-pill--{{ selected_event.severity_key }}">{{ selected_event.severity_label }}</span></dd>
+                </div>
+                <div>
+                    <dt>Status</dt>
+                    <dd><span class="audit-status-pill audit-status-pill--{{ selected_event.status_key }}">{{ selected_event.status_label }}</span></dd>
+                </div>
+                <div>
+                    <dt>Input Type</dt>
+                    <dd>{{ selected_event.input_type }}</dd>
+                </div>
+                <div>
+                    <dt>Output Type</dt>
+                    <dd>{{ selected_event.output_type }}</dd>
+                </div>
+                <div>
+                    <dt>Related Incident</dt>
+                    <dd>
+                        {% if selected_event.related_incident_url %}
+                            <a class="audit-detail-incident-link" href="{{ selected_event.related_incident_url }}">{{ selected_event.related_incident_label }}</a>
+                        {% else %}
+                            None linked
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt>File / Source</dt>
+                    <dd>{{ selected_event.file_source }}</dd>
+                </div>
+                <div>
+                    <dt>IP Address</dt>
+                    <dd>{{ selected_event.ip_address }}</dd>
+                </div>
+                <div>
+                    <dt>Summary</dt>
+                    <dd>{{ selected_event.summary }}</dd>
+                </div>
+            </dl>
+
+            <div class="audit-detail-panel__buttons">
+                <a class="results-primary-action audit-detail-button" href="{{ selected_event.detail_primary_url }}">
+                    <span>{{ selected_event.detail_primary_label }}</span>
+                    <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                </a>
+                {% if selected_event.detail_secondary_url %}
+                    <a class="results-secondary-action audit-detail-button" href="{{ selected_event.detail_secondary_url }}">
+                        <span>{{ selected_event.detail_secondary_label }}</span>
+                    </a>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="empty-state audit-empty-state audit-empty-state--detail">
+                <h3>No event selected</h3>
+                <p>Select an event from the table to inspect details, related incidents, and workflow outputs.</p>
+            </div>
+        {% endif %}
+    </aside>
+</section>
+{% endblock %}

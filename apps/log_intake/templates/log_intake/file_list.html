@@ -1,0 +1,309 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}Analysis Results | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro">
+    <div class="page-intro__copy">
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+    </div>
+    <div class="page-intro__meta">
+        <div class="dashboard-toolbar">
+            <a class="upload-submit-button dashboard-toolbar__primary" href="{% url 'log_intake:upload' %}">
+                <svg class="icon"><use href="#icon-upload"></use></svg>
+                <span>Upload Logs</span>
+            </a>
+            <div class="updated-chip">
+                <span>Last updated: {{ dashboard_updated_at }}</span>
+                <button class="icon-button icon-button--soft" type="button" aria-label="Refresh analysis overview" data-dashboard-refresh>
+                    <svg class="icon"><use href="#icon-refresh"></use></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="results-metrics-grid" aria-label="Analysis overview metrics">
+    {% for metric in results_metrics %}
+        {% if metric.url %}<a href="{{ metric.url }}" class="metric-card results-metric-card metric-card--link">{% else %}<article class="metric-card results-metric-card">{% endif %}
+            <div class="metric-card__top">
+                <p class="metric-card__label">{{ metric.title }}</p>
+                <div class="metric-card__icon metric-card__icon--{{ metric.accent }}">
+                    <svg class="icon"><use href="#icon-{{ metric.icon }}"></use></svg>
+                </div>
+            </div>
+            <div class="metric-card__value-row">
+                <h2 class="metric-card__value">{{ metric.value }}</h2>
+            </div>
+            <div class="results-metric-card__note">
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                <span>{{ metric.note }}</span>
+            </div>
+        {% if metric.url %}</a>{% else %}</article>{% endif %}
+    {% endfor %}
+</section>
+
+<section class="results-main-grid">
+    <article class="dashboard-panel results-alerts-panel" id="latest-alerts-panel">
+        <div class="dashboard-panel__head results-panel-head">
+            <div>
+                <h2>Parsed Alerts</h2>
+            </div>
+            <span class="results-panel-count">{{ workflow_summary.parsed_alerts }} total</span>
+        </div>
+
+        <form class="list-filter-bar" method="get">
+            <div class="upload-field">
+                <label for="file-list-alert-severity">Severity</label>
+                <select id="file-list-alert-severity" class="upload-select" name="alert_severity" data-auto-submit>
+                    <option value="" {% if not selected_alert_severity %}selected{% endif %}>All severities</option>
+                    <option value="high,critical" {% if selected_alert_severity == "high,critical" %}selected{% endif %}>High / Critical</option>
+                    {% for value, label in alert_severity_options %}
+                        <option value="{{ value }}" {% if selected_alert_severity == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="upload-field">
+                <label for="file-list-alert-source">Source</label>
+                <select id="file-list-alert-source" class="upload-select" name="alert_source" data-auto-submit>
+                    <option value="" {% if not selected_alert_source %}selected{% endif %}>All sources</option>
+                    {% for source in alert_source_options %}
+                        <option value="{{ source }}" {% if selected_alert_source == source %}selected{% endif %}>{{ source }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="upload-field">
+                <label for="file-list-alert-system">Affected system</label>
+                <select id="file-list-alert-system" class="upload-select" name="alert_system" data-auto-submit>
+                    <option value="" {% if not selected_alert_system %}selected{% endif %}>All systems</option>
+                    {% for system in alert_system_options %}
+                        <option value="{{ system }}" {% if selected_alert_system == system %}selected{% endif %}>{{ system }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if selected_alert_severity or selected_alert_source or selected_alert_system %}
+                <a class="link-inline" href="{% url 'log_intake:file_list' %}">Clear filters</a>
+            {% endif %}
+        </form>
+
+        {% if parsed_alert_rows %}
+            <div class="results-table-wrap">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Alert</th>
+                            <th>Source</th>
+                            <th>Severity</th>
+                            <th>Affected System</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in parsed_alert_rows %}
+                            <tr>
+                                <td class="results-alert-cell">
+                                    <span class="results-alert-dot results-alert-dot--{{ alert.severity }}"></span>
+                                    <strong>{{ alert.summary }}</strong>
+                                </td>
+                                <td>{{ alert.source_tool }}</td>
+                                <td>
+                                    <span class="severity-pill severity-pill--{{ alert.severity|default:'medium' }}">
+                                        {{ alert.severity_label }}
+                                    </span>
+                                </td>
+                                <td>{{ alert.affected_system }}</td>
+                                <td>{{ alert.time_display }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif selected_alert_severity or selected_alert_source or selected_alert_system %}
+            <div class="empty-state">
+                <h3>No alerts match these filters</h3>
+                <p>Try clearing a filter or choosing a different combination.</p>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>No parsed alerts yet</h3>
+                <p>Upload logs to start seeing AI-parsed alerts and grouped incidents.</p>
+            </div>
+        {% endif %}
+
+        <div class="dashboard-panel__footer">
+            {% if parsed_alert_total_filtered > parsed_alert_rows|length %}
+                <a class="link-inline" href="{{ view_all_parsed_alerts_url }}">
+                    <span>View all {{ parsed_alert_total_filtered }} alerts</span>
+                    <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                </a>
+            {% endif %}
+            <a class="link-inline" href="{% url 'log_intake:upload' %}">
+                <span>Upload more logs</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    </article>
+
+    <article class="dashboard-panel results-incidents-panel" id="grouped-incidents-panel">
+        <div class="dashboard-panel__head results-panel-head">
+            <div>
+                <h2>Grouped Incidents</h2>
+            </div>
+            <span class="results-panel-count">{{ workflow_summary.incidents }} total</span>
+        </div>
+
+        <form class="list-filter-bar" method="get">
+            <div class="upload-field">
+                <label for="file-list-incident-severity">Severity</label>
+                <select id="file-list-incident-severity" class="upload-select" name="incident_severity" data-auto-submit>
+                    <option value="" {% if not selected_incident_severity %}selected{% endif %}>All severities</option>
+                    <option value="high,critical" {% if selected_incident_severity == "high,critical" %}selected{% endif %}>High / Critical</option>
+                    {% for value, label in incident_severity_options %}
+                        <option value="{{ value }}" {% if selected_incident_severity == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="upload-field">
+                <label for="file-list-incident-status">Status</label>
+                <select id="file-list-incident-status" class="upload-select" name="incident_status" data-auto-submit>
+                    <option value="" {% if not selected_incident_status %}selected{% endif %}>All statuses</option>
+                    {% for value, label in incident_status_options %}
+                        <option value="{{ value }}" {% if selected_incident_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if selected_incident_severity or selected_incident_status %}
+                <a class="link-inline" href="{% url 'log_intake:file_list' %}">Clear filters</a>
+            {% endif %}
+        </form>
+
+        {% if incident_cards %}
+            <div class="results-incident-list">
+                {% for incident in incident_cards %}
+                    <article class="results-incident-card">
+                        <div class="results-incident-card__top">
+                            <div class="results-incident-card__icon results-incident-card__icon--{{ incident.severity }}">
+                                {% if incident.severity == "critical" %}
+                                    <svg class="icon"><use href="#icon-critical"></use></svg>
+                                {% elif incident.severity == "high" %}
+                                    <svg class="icon"><use href="#icon-warning"></use></svg>
+                                {% else %}
+                                    <svg class="icon"><use href="#icon-incident"></use></svg>
+                                {% endif %}
+                            </div>
+                            <div class="results-incident-card__copy">
+                                <h3>{{ incident.title }}</h3>
+                            </div>
+                            <span class="severity-pill severity-pill--{{ incident.severity }}">{{ incident.severity_label }}</span>
+                        </div>
+
+                        <div class="results-incident-card__stats">
+                            <div>
+                                <span>Sources</span>
+                                <strong>{{ incident.source_count }}</strong>
+                            </div>
+                            <div>
+                                <span>Evidence</span>
+                                <strong>{{ incident.evidence_count }}</strong>
+                            </div>
+                            <div>
+                                <span>Affected System</span>
+                                <strong>{{ incident.affected_system }}</strong>
+                            </div>
+                        </div>
+
+                        <a class="results-incident-card__footer" href="{{ incident.url }}">
+                            <span>View incident detail</span>
+                            <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                        </a>
+                    </article>
+                {% endfor %}
+            </div>
+        {% elif selected_incident_severity or selected_incident_status %}
+            <div class="empty-state">
+                <h3>No incidents match these filters</h3>
+                <p>Try clearing a filter or choosing a different combination.</p>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h3>No grouped incidents yet</h3>
+                <p>Incidents will appear here after the uploaded logs are analyzed and clustered.</p>
+            </div>
+        {% endif %}
+
+        <div class="dashboard-panel__footer">
+            <a class="link-inline" href="{% url 'incidents:index' %}">
+                <span>View all incidents</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+        </div>
+    </article>
+
+    <aside class="dashboard-panel results-summary-panel">
+        <div class="dashboard-panel__head results-summary-panel__head">
+            <div class="results-summary-panel__title">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <h2>AI Summary</h2>
+            </div>
+        </div>
+
+        <section class="results-summary-card">
+            <h3>Key Findings</h3>
+            <ul class="results-summary-list">
+                {% for finding in ai_key_findings %}
+                    <li>{{ finding }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <section class="results-summary-card">
+            <h3>
+                <svg class="icon"><use href="#icon-device"></use></svg>
+                <span>Top Affected Systems</span>
+            </h3>
+
+            {% if top_affected_systems %}
+                <div class="results-systems-list">
+                    {% for system in top_affected_systems %}
+                        <div class="results-system-row">
+                            <span>{{ system.name }}</span>
+                            <strong>{{ system.count }}</strong>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="results-summary-empty">Affected system counts will appear after logs are analyzed.</p>
+            {% endif %}
+        </section>
+
+        <section class="results-recommendation-card">
+            <div class="results-recommendation-card__icon">
+                <svg class="icon"><use href="#icon-shield-check"></use></svg>
+            </div>
+            <div>
+                <h3>Recommended Next Step</h3>
+                <p>{{ recommended_next_step }}</p>
+            </div>
+        </section>
+
+        <div class="results-summary-actions">
+            <a class="results-primary-action" href="{% url 'incidents:index' %}">
+                <svg class="icon"><use href="#icon-incident-nav"></use></svg>
+                <span>Review Incidents</span>
+                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+            </a>
+
+            <a class="results-secondary-action" href="{% url 'log_intake:upload' %}">
+                <svg class="icon"><use href="#icon-upload"></use></svg>
+                <span>Upload Logs</span>
+            </a>
+        </div>
+    </aside>
+</section>
+{% endblock %}

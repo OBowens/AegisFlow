@@ -1,0 +1,50 @@
+Aug 23 08:00:04 pve02 pvedaemon[9668]: <ops@pve> end task UPID:pve02:0000A2:qmstop:135:ops@pve: OK
+Aug 23 08:02:51 pve03 pvedaemon[14930]: <ops@pve> end task UPID:pve03:0000A2:qmstop:101:ops@pve: OK
+Aug 23 08:04:14 pve03 pvedaemon[9704]: <admin@pam> end task UPID:pve03:0000A1:qmstart:105:admin@pam: OK
+Aug 23 08:06:03 pve01 pvedaemon[11079]: <admin@pam> end task UPID:pve01:0000A1:qmstart:135:admin@pam: OK
+Aug 23 08:08:52 pve03 kernel: vmbr0: port 5(tap120i0) entered forwarding state
+Aug 23 08:10:19 pve03 pvedaemon[9920]: migration of VM 135 to pve02 finished successfully
+Aug 23 08:12:05 pve02 kernel: vmbr0: port 12(tap120i0) entered disabled state
+Aug 23 08:14:01 pve02 pvedaemon[8501]: authentication failure; rhost=198.51.100.44 user=root@pam msg=Authentication failure
+Aug 23 08:16:52 pve03 vzdump[19882]: INFO: Finished Backup of VM 101 (00:16:12)
+Aug 23 08:18:33 pve02 pvestatd[10114]: storage 'local-lvm' usage 88%
+Aug 23 08:20:40 pve02 pvestatd[3989]: storage 'local-lvm' usage 81%
+Aug 23 08:22:21 pve02 vzdump[22958]: ERROR: Backup of VM 101 failed - storage 'backup-nas' is not available
+Aug 23 08:24:21 pve01 pvedaemon[23730]: migration of VM 120 to pve03 finished successfully
+Aug 23 08:26:25 pve03 corosync[2202]: [TOTEM ] A new membership (2442) was formed
+Aug 23 08:28:16 pve02 vzdump[4798]: ERROR: Backup of VM 120 failed - storage 'backup-nas' is not available
+Aug 23 08:30:52 pve03 pvedaemon[22550]: <admin@pam> successful auth
+Aug 23 08:32:03 pve02 pvedaemon[17988]: <ops@pve> end task UPID:pve02:0000A2:qmstop:112:ops@pve: OK
+Aug 23 08:34:48 pve03 pvestatd[21493]: storage 'local-lvm' usage 94%
+Aug 23 08:36:13 pve01 vzdump[18996]: INFO: Finished Backup of VM 105 (00:23:12)
+Aug 23 08:38:56 pve02 pvestatd[4978]: storage 'local-lvm' usage 90%
+Aug 23 08:40:51 pve03 pvedaemon[24258]: <ops@pve> end task UPID:pve03:0000A2:qmstop:105:ops@pve: OK
+Aug 23 08:42:35 pve02 pvedaemon[19096]: <root@pam> successful auth
+Aug 23 08:44:53 pve01 pvedaemon[16120]: authentication failure; rhost=203.0.113.55 user=root@pam msg=Authentication failure
+Aug 23 08:46:59 pve02 vzdump[17674]: INFO: Finished Backup of VM 112 (00:31:12)
+Aug 23 08:48:30 pve02 pvedaemon[15967]: <ops@pve> end task UPID:pve02:0000A2:qmstop:135:ops@pve: OK
+Aug 23 08:50:24 pve01 pvedaemon[20640]: <ops@pve> end task UPID:pve01:0000A2:qmstop:135:ops@pve: OK
+Aug 23 08:52:56 pve03 pvedaemon[3287]: <admin@pam> end task UPID:pve03:0000A1:qmstart:112:admin@pam: OK
+Aug 23 08:54:21 pve02 corosync[9754]: [TOTEM ] A new membership (5634) was formed
+Aug 23 08:56:19 pve03 kernel: vmbr0: port 6(tap120i0) entered forwarding state
+Aug 23 08:58:30 pve03 vzdump[11893]: ERROR: Backup of VM 135 failed - storage 'backup-nas' is not available
+Aug 23 09:00:24 pve03 pvestatd[11544]: storage 'local-lvm' usage 92%
+Aug 23 09:02:36 pve01 pvedaemon[8653]: migration of VM 120 to pve02 finished successfully
+Aug 23 09:04:47 pve02 pvestatd[24108]: storage 'local-lvm' usage 82%
+Aug 23 09:06:50 pve03 pvedaemon[17230]: <admin@pam> end task UPID:pve03:0000A1:qmstart:101:admin@pam: OK
+Aug 23 09:08:32 pve01 kernel: vmbr0: port 16(tap101i0) entered blocking state
+Aug 23 09:10:58 pve03 pvestatd[1502]: storage 'local-lvm' usage 83%
+Aug 23 09:12:09 pve03 pvedaemon[16384]: authentication failure; rhost=10.20.15.87 user=ops@pve msg=Authentication failure
+Aug 23 09:14:25 pve03 pvedaemon[11766]: authentication failure; rhost=10.20.30.77 user=admin@pam msg=Authentication failure
+Aug 23 09:16:45 pve03 pvestatd[18728]: storage 'local-lvm' usage 89%
+Aug 23 09:18:15 pve01 vzdump[8454]: INFO: Finished Backup of VM 101 (00:32:12)
+Aug 23 09:20:48 pve01 pvedaemon[15538]: authentication failure; rhost=203.0.113.55 user=admin@pam msg=Authentication failure
+Aug 23 09:22:02 pve01 vzdump[2838]: ERROR: Backup of VM 112 failed - storage 'backup-nas' is not available
+Aug 23 09:24:23 pve02 pvedaemon[5770]: migration of VM 105 to pve03 finished successfully
+Aug 23 09:26:43 pve03 pvedaemon[6570]: <admin@pam> end task UPID:pve03:0000A1:qmstart:105:admin@pam: OK
+Aug 23 09:28:39 pve01 pvedaemon[21306]: migration of VM 105 to pve03 finished successfully
+Aug 23 09:30:09 pve03 pvedaemon[16110]: <ops@pve> end task UPID:pve03:0000A2:qmstop:112:ops@pve: OK
+Aug 23 09:32:16 pve02 pvedaemon[16245]: <ops@pve> successful auth
+Aug 23 09:34:10 pve03 pvedaemon[15474]: authentication failure; rhost=198.51.100.44 user=admin@pam msg=Authentication failure
+Aug 23 09:36:27 pve03 vzdump[15969]: INFO: Finished Backup of VM 112 (00:17:12)
+Aug 23 09:38:54 pve02 pvestatd[4494]: storage 'local-lvm' usage 82%

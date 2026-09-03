@@ -1,0 +1,160 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}{{ page_title }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro">
+    <div class="page-intro__copy">
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+    </div>
+    <div class="page-intro__meta">
+        <div class="updated-chip">
+            <span>Last updated: {{ dashboard_updated_at }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="dashboard-panel incident-queue-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <div>
+            <h2>
+                <svg class="icon"><use href="#icon-gaps"></use></svg>
+                <span>Detected Gaps</span>
+            </h2>
+            <p>
+                {% if scoped_uploaded_file %}
+                    Gaps found in incidents from {{ scoped_uploaded_file.file_name }}.
+                {% else %}
+                    Every control/evidence gap found across all incidents.
+                {% endif %}
+            </p>
+        </div>
+        <span class="results-panel-count">{{ gap_count }} total</span>
+    </div>
+
+    <form class="list-filter-bar" method="get">
+        {% if scoped_uploaded_file %}
+            <input type="hidden" name="uploaded_file" value="{{ scoped_uploaded_file.id }}">
+        {% endif %}
+
+        <div class="upload-field">
+            <label for="gap-filter-priority">Priority</label>
+            <select id="gap-filter-priority" class="upload-select" name="priority" data-auto-submit>
+                <option value="" {% if not selected_priority %}selected{% endif %}>All priorities</option>
+                <option value="high,critical" {% if selected_priority == "high,critical" %}selected{% endif %}>High / Critical</option>
+                {% for value, label in priority_options %}
+                    <option value="{{ value }}" {% if selected_priority == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="upload-field">
+            <label for="gap-filter-source">Source</label>
+            <select id="gap-filter-source" class="upload-select" name="source" data-auto-submit>
+                <option value="" {% if not selected_source %}selected{% endif %}>All sources</option>
+                {% for value, label in source_options %}
+                    <option value="{{ value }}" {% if selected_source == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if selected_priority or selected_source %}
+            <a class="link-inline" href="?{% if scoped_uploaded_file %}uploaded_file={{ scoped_uploaded_file.id }}{% endif %}">Clear filters</a>
+        {% endif %}
+    </form>
+
+    {% if gap_cards %}
+        <div class="incident-queue-list">
+            {% for gap in gap_cards %}
+                <article class="incident-queue-card" id="gap-{{ gap.id }}">
+                    <div class="incident-queue-card__top">
+                        <div class="incident-queue-card__badges">
+                            <span class="severity-pill severity-pill--{{ gap.priority }}">{{ gap.priority_label }}</span>
+                        </div>
+                        <span class="incident-queue-card__time">{{ gap.created_display }}</span>
+                    </div>
+
+                    <h3 class="incident-queue-card__title">{{ gap.name }}</h3>
+
+                    <p class="incident-queue-card__summary">{{ gap.description }}</p>
+
+                    <div class="incident-queue-card__meta">
+                        <span>{{ gap.source_label }}</span>
+                        {% if gap.affected_system %}<span>{{ gap.affected_system }}</span>{% endif %}
+                        {% if gap.incident_title %}<span>{{ gap.incident_title }}</span>{% endif %}
+                    </div>
+
+                    {% if gap.incident_url %}
+                        <div class="incident-queue-card__footer">
+                            <a class="link-inline" href="{{ gap.incident_url }}">
+                                <span>Open incident</span>
+                                <svg class="icon"><use href="#icon-arrow-right"></use></svg>
+                            </a>
+                        </div>
+                    {% endif %}
+
+                    <div class="incident-queue-card__footer">
+                        <form method="post" action="{{ gap.explain_url }}" data-ai-action>
+                            {% csrf_token %}
+                            <button class="incident-action-button" type="submit">
+                                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                                <span>Explain This Risk</span>
+                            </button>
+                        </form>
+
+                        {% if gap.narration %}
+                            <p>{{ gap.narration|linebreaksbr }}</p>
+                            <p class="incident-ai-summary__meta">
+                                Model: {{ gap.narration_model }} &middot; Generated: {{ gap.narration_generated_display }}
+                            </p>
+                        {% endif %}
+
+                        <form method="post" action="{{ gap.ask_url }}" class="incident-qa-form" data-ai-action>
+                            {% csrf_token %}
+                            <input
+                                type="text"
+                                name="question"
+                                class="upload-select"
+                                placeholder="Ask a question about this gap/risk..."
+                                required
+                            >
+                            <button class="incident-action-button" type="submit">
+                                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                                <span>Ask</span>
+                            </button>
+                        </form>
+
+                        {% if gap.questions %}
+                            <ul class="incident-qa-thread">
+                                {% for qa in gap.questions %}
+                                    <li class="incident-qa-thread__item">
+                                        <p class="incident-qa-thread__question"><strong>Q:</strong> {{ qa.question }}</p>
+                                        <p class="incident-qa-thread__answer"><strong>A:</strong> {{ qa.answer|linebreaksbr }}</p>
+                                        <p class="incident-ai-summary__meta">
+                                            Model: {{ qa.model }} &middot; Asked: {{ qa.asked_at }}
+                                        </p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% elif selected_priority or selected_source %}
+        <div class="empty-state">
+            <h3>No gaps match these filters</h3>
+            <p>Try clearing a filter or choosing a different combination.</p>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No gaps detected yet</h3>
+            <p>Upload logs to generate incidents and their associated gap findings.</p>
+            <p class="empty-state__actions">
+                <a class="upload-submit-button" href="{% url 'log_intake:upload' %}">Upload Logs</a>
+            </p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

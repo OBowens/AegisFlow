@@ -1,0 +1,3 @@
+2026-06-21 07:30:05 firewall edge-fw-01 denied traffic from 192.0.2.10 to 203.0.113.44 port 3389
+2026-06-21 07:30:17 firewall edge-fw-01 denied repeatedly from 192.0.2.10 to 203.0.113.44 port 3389
+2026-06-21 07:30:45 firewall edge-fw-01 warning denied traffic pattern from 198.51.100.77 to 203.0.113.44

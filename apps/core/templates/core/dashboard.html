@@ -1,0 +1,45 @@
+{% extends "layouts/app_base.html" %}
+{% block title %}Home | {{ BRAND_NAME }}{% endblock %}
+{% block app_content %}
+<span class="sr-only">Dashboard</span>
+<section class="af-home-hero af-home-hero--deluxe">
+  <div class="af-home-hero__content">
+    <span class="af-kicker">Your security, simplified</span>
+    <h1>AegisFlow has found {{ priority_incident_count }} thing{{ priority_incident_count|pluralize }} that need your attention</h1>
+    <div class="af-severity-summary">{% for segment in risk_distribution.segments %}{% if segment.key == 'critical' or segment.key == 'high' %}<span class="af-pill af-pill--{{ segment.key }}"><b>{{ segment.count }}</b> {{ segment.label }}</span>{% endif %}{% endfor %}</div>
+    <p>We turn complex security events into clear, guided actions so you can protect what matters.</p>
+    {% if priority_incidents %}<a class="af-primary af-primary--glow" href="{% url 'incidents:detail' priority_incidents.0.id %}">Start With The Most Important <svg class="icon"><use href="#icon-arrow-right"></use></svg></a>{% else %}<a class="af-primary af-primary--glow" href="{% url 'log_intake:upload' %}">Upload security data <svg class="icon"><use href="#icon-arrow-right"></use></svg></a>{% endif %}
+  </div>
+  <div class="af-shield-scene" aria-hidden="true"><span class="af-orbit af-orbit--one"></span><span class="af-orbit af-orbit--two"></span><span class="af-orbit-dot af-orbit-dot--one"></span><span class="af-orbit-dot af-orbit-dot--two"></span><svg class="icon"><use href="#icon-brand-shield"></use></svg></div>
+</section>
+
+<section class="af-section-head af-section-head--priority"><div><span class="af-heading-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><div><h2>Priority incidents</h2><p>Start with what matters most.</p></div></div><a href="{% url 'incidents:index' %}?tab=queue">View all incidents <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></section>
+<section class="af-priority-briefing" aria-labelledby="priority-briefing-title">
+  <div>
+    <span class="af-heading-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
+    <div>
+      <h2 id="priority-briefing-title">What Should I Fix First?</h2>
+      {% if priority_briefing %}
+        <p class="af-priority-briefing__answer">{{ priority_briefing.text }}</p>
+        <small>Generated {{ priority_briefing.generated_display }}</small>
+      {% else %}
+        <p>Get an AI-generated briefing that ranks your most urgent security work.</p>
+      {% endif %}
+    </div>
+  </div>
+  <form method="post" action="{{ explain_priorities_url }}" data-ai-action>
+    {% csrf_token %}
+    <button class="af-primary" type="submit"><svg class="icon"><use href="#icon-sparkles"></use></svg>{% if priority_briefing %}Refresh priorities{% else %}Explain priorities{% endif %}</button>
+  </form>
+</section>
+<section class="af-priority-grid">{% for incident in priority_incidents|slice:":3" %}<article class="af-incident-card af-incident-card--{{ incident.severity }}"><div class="af-card-top"><span class="af-severity-badge af-severity-badge--{{ incident.severity }}"><svg class="icon"><use href="#icon-warning"></use></svg>{{ incident.severity_label }}</span><span>{{ incident.created_display }}</span></div><h3>{{ incident.title }}</h3><strong>{{ incident.affected_systems }}</strong><p>{{ incident.incident_type|default:"A security issue needs review." }}</p><div class="af-card-facts"><span><small><svg class="icon"><use href="#icon-clock"></use></svg> First seen</small>{{ incident.created_display }}</span><span><small><svg class="icon"><use href="#icon-device"></use></svg> Affected system</small>{{ incident.affected_systems }}</span></div><a class="af-investigate" href="{% url 'incidents:detail' incident.id %}">Start Investigation <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>{% empty %}<article class="af-empty"><svg class="icon"><use href="#icon-shield-check"></use></svg><h3>No urgent incidents</h3><p>Your current data has no priority incidents.</p><a class="af-primary" href="{% url 'log_intake:upload' %}">Upload Data</a></article>{% endfor %}</section>
+
+<section class="af-overview-grid af-overview-grid--deluxe">
+  <article class="af-mini-panel af-mini-panel--systems"><div class="af-mini-title"><span><svg class="icon"><use href="#icon-device"></use></svg></span><h3>Systems status</h3></div><div class="af-system-status"><p><i class="is-critical"></i><span>Needs review</span><strong>{{ priority_incident_count }}</strong></p><p><i class="is-warning"></i><span>Open readiness issues</span><strong>{{ readiness_summary.open_issues }}</strong></p><p><i class="is-good"></i><span>Controls recorded</span><strong>{{ readiness_summary.controls_ok }}</strong></p><p><i class="is-info"></i><span>Actions in progress</span><strong>{{ readiness_summary.in_progress }}</strong></p></div><a href="{% url 'incidents:index' %}?tab=queue">View all systems <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>
+  <article class="af-mini-panel af-mini-panel--activity"><div class="af-mini-title"><span><svg class="icon"><use href="#icon-clock"></use></svg></span><h3>Recent activity</h3></div>{% for incident in recent_incidents|slice:":4" %}<div class="af-activity"><i class="af-dot af-dot--{{ incident.severity }}"></i><span>{{ incident.title }}</span><small>{{ incident.created_display }}</small></div>{% empty %}<p>No recent incident activity.</p>{% endfor %}<a href="{% url 'incidents:index' %}">View full activity feed <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>
+  <article class="af-mini-panel af-mini-panel--readiness"><div class="af-mini-title"><span><svg class="icon"><use href="#icon-readiness-nav"></use></svg></span><h3>Readiness score</h3></div><div class="af-score" style="--score:{{ readiness_summary.score }}"><strong>{{ readiness_summary.score_display }}</strong><span>Overall readiness</span></div><p>{{ readiness_summary.headline }}</p><a href="{% url 'resilience:index' %}">Improve readiness <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>
+  <article class="af-mini-panel af-mini-panel--risk"><div class="af-mini-title"><span><svg class="icon"><use href="#icon-warning"></use></svg></span><h3>Risk distribution</h3></div><div class="af-risk-layout"><div class="risk-donut af-risk" style="background:{{ risk_distribution.gradient }}"><div class="risk-donut__center"><strong>{{ risk_distribution.total_display }}</strong><span>Total risks</span></div></div><div class="af-risk-legend">{% for segment in risk_distribution.segments %}<p><i style="background:{{ segment.color }}"></i><span>{{ segment.label }}</span><strong>{{ segment.count }}</strong></p>{% endfor %}</div></div><a href="/risk/">View risk report <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>
+  <article class="af-mini-panel af-mini-panel--reports"><div class="af-mini-title"><span><svg class="icon"><use href="#icon-reports-nav"></use></svg></span><h3>Reports summary</h3></div>{% for stat in dashboard_stats %}{% if stat.title == 'Reports Generated' %}<div class="af-report-total"><strong>{{ stat.value_display }}</strong><span>Reports generated</span></div>{% endif %}{% endfor %}<div class="af-report-links"><a href="{% url 'reports:index' %}?preview_type=readiness">Readiness reports <svg class="icon"><use href="#icon-arrow-right"></use></svg></a><a href="{% url 'reports:index' %}?preview_type=risk">Risk reports <svg class="icon"><use href="#icon-arrow-right"></use></svg></a><a href="{% url 'reports:index' %}?preview_type=executive">Executive reports <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></div><a href="{% url 'reports:index' %}">View all reports <svg class="icon"><use href="#icon-arrow-right"></use></svg></a></article>
+</section>
+<section class="af-assistant-bar af-assistant-bar--glow"><svg class="icon"><use href="#icon-sparkles"></use></svg><div><strong>AegisFlow AI Assistant</strong><span>Ask anything about your systems, incidents, or next steps.</span></div><a href="{% url 'incidents:index' %}"><svg class="icon"><use href="#icon-sparkles"></use></svg> Ask a question</a></section>
+{% endblock %}

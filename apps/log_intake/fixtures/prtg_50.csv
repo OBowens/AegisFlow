@@ -1,0 +1,51 @@
+datetime,probe,group,device,sensor,status,message,last_value,unit
+2026-08-23 08:00:00,Local Probe,Network,CORE-SW01,Traffic Port 24,Up,OK,87,Percent
+2026-08-23 08:04:00,Local Probe,Virtualization,PVE02,CPU Load,Up,OK,23,Percent
+2026-08-23 08:08:00,Local Probe,Virtualization,PVE01,Memory Usage,Paused,Threshold exceeded,96,Percent
+2026-08-23 08:12:00,Local Probe,Server Room,TEMP01,Humidity,Up,OK,38.4,Percent
+2026-08-23 08:16:00,Local Probe,Servers,DB01,Ping,Up,OK,176,ms
+2026-08-23 08:20:00,Local Probe,Virtualization,PVE02,Ping,Up,OK,137,ms
+2026-08-23 08:24:00,Local Probe,Server Room,TEMP01,Humidity,Up,OK,57.8,Percent
+2026-08-23 08:28:00,Local Probe,Network,DIST-SW02,Ping,Warning,Request timed out,126,ms
+2026-08-23 08:32:00,Local Probe,Server Room,TEMP01,Humidity,Unknown,Humidity threshold issue,75.1,Percent
+2026-08-23 08:36:00,Local Probe,Backup,PBS01,Backup Age,Up,OK,56,Hours
+2026-08-23 08:40:00,Local Probe,Servers,WEB01,Disk Free,Paused,Low disk space,72,Percent Free
+2026-08-23 08:44:00,Local Probe,Backup,PBS01,Datastore Usage,Warning,Threshold exceeded,85,Percent
+2026-08-23 08:48:00,Local Probe,Network,CORE-SW01,Traffic Port 24,Up,OK,21,Percent
+2026-08-23 08:52:00,Local Probe,Network,CORE-SW01,Traffic Port 24,Up,OK,69,Percent
+2026-08-23 08:56:00,Local Probe,Server Room,TEMP01,Humidity,Up,OK,57.2,Percent
+2026-08-23 09:00:00,Local Probe,Network,DIST-SW02,Ping,Warning,Sensor has no data,55,ms
+2026-08-23 09:04:00,Local Probe,Network,CORE-SW01,Traffic Port 24,Up,OK,86,Percent
+2026-08-23 09:08:00,Local Probe,Network,CORE-SW01,SNMP Uptime,Up,OK,133,Value
+2026-08-23 09:12:00,Local Probe,Servers,DB01,Ping,Up,OK,185,ms
+2026-08-23 09:16:00,Local Probe,Server Room,TEMP01,Humidity,Down,Humidity threshold issue,69.1,Percent
+2026-08-23 09:20:00,Local Probe,Backup,PBS01,Backup Age,Warning,Backup age exceeds threshold,58,Hours
+2026-08-23 09:24:00,Local Probe,Virtualization,PVE01,Ping,Up,OK,57,ms
+2026-08-23 09:28:00,Local Probe,Server Room,TEMP01,Temperature,Warning,Temperature above normal operating range,25.3,Celsius
+2026-08-23 09:32:00,Local Probe,Network,DIST-SW02,Traffic Port 24,Down,Threshold exceeded,77,Percent
+2026-08-23 09:36:00,Local Probe,Network,DIST-SW02,Traffic Port 24,Down,Threshold exceeded,52,Percent
+2026-08-23 09:40:00,Local Probe,Network,DIST-SW02,SNMP Uptime,Warning,Sensor has no data,70,Value
+2026-08-23 09:44:00,Local Probe,Network,CORE-SW01,Ping,Up,OK,185,ms
+2026-08-23 09:48:00,Local Probe,Servers,DB01,Disk Free,Up,OK,72,Percent Free
+2026-08-23 09:52:00,Local Probe,Servers,WEB01,CPU Load,Up,OK,71,Percent
+2026-08-23 09:56:00,Local Probe,Network,CORE-SW01,SNMP Uptime,Paused,Paused by dependency,195,Value
+2026-08-23 10:00:00,Local Probe,Network,CORE-SW01,Ping,Up,OK,76,ms
+2026-08-23 10:04:00,Local Probe,Servers,DB01,Disk Free,Up,OK,42,Percent Free
+2026-08-23 10:08:00,Local Probe,Virtualization,PVE01,CPU Load,Up,OK,15,Percent
+2026-08-23 10:12:00,Local Probe,Virtualization,PVE01,Memory Usage,Up,OK,91,Percent
+2026-08-23 10:16:00,Local Probe,Backup,PBS01,Ping,Up,OK,147,ms
+2026-08-23 10:20:00,Local Probe,Network,CORE-SW01,Traffic Port 24,Warning,Threshold exceeded,66,Percent
+2026-08-23 10:24:00,Local Probe,Network,DIST-SW02,Ping,Up,OK,65,ms
+2026-08-23 10:28:00,Local Probe,Backup,PBS01,Ping,Up,OK,103,ms
+2026-08-23 10:32:00,Local Probe,Backup,PBS01,Ping,Paused,Paused by dependency,162,ms
+2026-08-23 10:36:00,Local Probe,Virtualization,PVE01,CPU Load,Up,OK,82,Percent
+2026-08-23 10:40:00,Local Probe,Network,CORE-SW01,Ping,Up,OK,31,ms
+2026-08-23 10:44:00,Local Probe,Server Room,TEMP01,Temperature,Up,OK,22.6,Celsius
+2026-08-23 10:48:00,Local Probe,Backup,PBS01,Datastore Usage,Paused,Threshold exceeded,64,Percent
+2026-08-23 10:52:00,Local Probe,Network,CORE-SW01,SNMP Uptime,Paused,Paused by dependency,16,Value
+2026-08-23 10:56:00,Local Probe,Virtualization,PVE02,CPU Load,Unknown,Threshold exceeded,37,Percent
+2026-08-23 11:00:00,Local Probe,Network,CORE-SW01,SNMP Uptime,Up,OK,41,Value
+2026-08-23 11:04:00,Local Probe,Servers,DB01,CPU Load,Down,Threshold exceeded,19,Percent
+2026-08-23 11:08:00,Local Probe,Servers,WEB01,Ping,Warning,Paused by dependency,116,ms
+2026-08-23 11:12:00,Local Probe,Backup,PBS01,Datastore Usage,Up,OK,39,Percent
+2026-08-23 11:16:00,Local Probe,Network,CORE-SW01,SNMP Uptime,Up,OK,180,Value

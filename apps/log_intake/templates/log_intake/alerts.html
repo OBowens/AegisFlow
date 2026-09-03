@@ -1,0 +1,116 @@
+{% extends "layouts/app_base.html" %}
+
+{% block title %}{{ page_title }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block app_content %}
+<section class="page-intro">
+    <div class="page-intro__copy">
+        <h1>{{ page_title }}</h1>
+        <p>{{ page_description }}</p>
+    </div>
+    <div class="page-intro__meta">
+        <div class="updated-chip">
+            <span>Last updated: {{ dashboard_updated_at }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="dashboard-panel incident-queue-panel">
+    <div class="dashboard-panel__head incident-detail-panel__head">
+        <div>
+            <h2>
+                <svg class="icon"><use href="#icon-logs"></use></svg>
+                <span>Parsed Alerts</span>
+            </h2>
+            <p>
+                {% if scoped_uploaded_file %}
+                    Alerts parsed from {{ scoped_uploaded_file.file_name }}.
+                {% else %}
+                    Every alert parsed across all uploads.
+                {% endif %}
+            </p>
+        </div>
+        <span class="results-panel-count">{{ alert_count }} total</span>
+    </div>
+
+    <form class="list-filter-bar" method="get">
+        {% if scoped_uploaded_file %}
+            <input type="hidden" name="uploaded_file" value="{{ scoped_uploaded_file.id }}">
+        {% endif %}
+
+        <div class="upload-field">
+            <label for="alert-filter-severity">Severity</label>
+            <select id="alert-filter-severity" class="upload-select" name="severity" data-auto-submit>
+                <option value="" {% if not selected_severity %}selected{% endif %}>All severities</option>
+                <option value="high,critical" {% if selected_severity == "high,critical" %}selected{% endif %}>High / Critical</option>
+                {% for value, label in severity_options %}
+                    <option value="{{ value }}" {% if selected_severity == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="upload-field">
+            <label for="alert-filter-source">Source</label>
+            <select id="alert-filter-source" class="upload-select" name="source" data-auto-submit>
+                <option value="" {% if not selected_source %}selected{% endif %}>All sources</option>
+                {% for source in source_options %}
+                    <option value="{{ source }}" {% if selected_source == source %}selected{% endif %}>{{ source }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="upload-field">
+            <label for="alert-filter-system">Affected system</label>
+            <select id="alert-filter-system" class="upload-select" name="affected_system" data-auto-submit>
+                <option value="" {% if not selected_affected_system %}selected{% endif %}>All systems</option>
+                {% for system in affected_system_options %}
+                    <option value="{{ system }}" {% if selected_affected_system == system %}selected{% endif %}>{{ system }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if selected_severity or selected_source or selected_affected_system %}
+            <a class="link-inline" href="?{% if scoped_uploaded_file %}uploaded_file={{ scoped_uploaded_file.id }}{% endif %}">Clear filters</a>
+        {% endif %}
+    </form>
+
+    {% if alert_cards %}
+        <div class="incident-queue-list">
+            {% for alert in alert_cards %}
+                <article class="incident-queue-card">
+                    <div class="incident-queue-card__top">
+                        <div class="incident-queue-card__badges">
+                            <span class="severity-pill severity-pill--{{ alert.severity }}">{{ alert.severity_label }}</span>
+                        </div>
+                        <span class="incident-queue-card__time">{{ alert.time_display }}</span>
+                    </div>
+
+                    <h3 class="incident-queue-card__title">{{ alert.summary }}</h3>
+
+                    <div class="incident-queue-card__meta">
+                        <span>{{ alert.source_tool }}</span>
+                        <span>{{ alert.affected_system }}</span>
+                        {% if alert.account %}<span>{{ alert.account }}</span>{% endif %}
+                        {% if not scoped_uploaded_file and alert.uploaded_file_name %}
+                            <span>{{ alert.uploaded_file_name }}</span>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% elif selected_severity or selected_source or selected_affected_system %}
+        <div class="empty-state">
+            <h3>No alerts match these filters</h3>
+            <p>Try clearing a filter or choosing a different combination.</p>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No parsed alerts yet</h3>
+            <p>Upload logs to generate parsed alerts.</p>
+            <p class="empty-state__actions">
+                <a class="upload-submit-button" href="{% url 'log_intake:upload' %}">Upload Logs</a>
+            </p>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}
