@@ -86,7 +86,7 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 
 ### Non-secret configuration (safe defaults documented in `.env.example`)
 - `DJANGO_DEBUG` — set **`False`** on the VPS
-- `DJANGO_ALLOWED_HOSTS` — set to the real domain
+- `DJANGO_ALLOWED_HOSTS` — set to `aegisflow.vincypros.com`
 - `BRAND_NAME`, `BRAND_TAGLINE`
 - `ANTHROPIC_MODEL` (default `claude-sonnet-5`)
 - `AI_SANITIZER_ENABLED` (default `True`)
@@ -98,7 +98,7 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 - `PRIVATE_EXPORT_ROOT` (default `private_exports`)
 
 ### New this session — reverse-proxy / HTTPS hardening (all optional, dev-safe when unset)
-- `DJANGO_CSRF_TRUSTED_ORIGINS` — set to `https://<real-domain>` on the VPS
+- `DJANGO_CSRF_TRUSTED_ORIGINS` — set to `https://aegisflow.vincypros.com` on the VPS
 - `DJANGO_SECURE_PROXY_SSL_HEADER` — set `True` behind Nginx
 - `DJANGO_SESSION_COOKIE_SECURE` — set `True`
 - `DJANGO_CSRF_COOKIE_SECURE` — set `True`
@@ -131,7 +131,7 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 
 **Drafted production launch (this session, `deploy/`, NOT installed):**
 - `deploy/aegisflow.service` — gunicorn `Type=notify`, unix socket `/run/aegisflow/gunicorn.sock` (`RuntimeDirectory=aegisflow`, mode 0750), `User=aegisflow`, `WorkingDirectory=/opt/aegisflow/app`, `After=/Requires=postgresql.service`. Sandboxing: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=/opt/aegisflow/app`, kernel/cgroup protections.
-- `deploy/nginx-aegisflow.conf` — proxy to that socket, `/static/` served off disk from `/opt/aegisflow/app/staticfiles/`, `client_max_body_size 25m`, placeholder `AEGISFLOW_DOMAIN_PLACEHOLDER`, HTTP-only until `certbot --nginx` slots in the 443 block.
+- `deploy/nginx-aegisflow.conf` — proxy to that socket, `/static/` served off disk from `/opt/aegisflow/app/staticfiles/`, `client_max_body_size 25m`, `server_name aegisflow.vincypros.com`, HTTP-only until `certbot --nginx` slots in the 443 block.
 
 ---
 
@@ -152,21 +152,25 @@ The live GCP VM external IP `136.115.62.107` was swept for across the whole box.
 
 | Location | Transferred? | Notes |
 |---|---|---|
-| `/etc/nginx/sites-available/caribsecure` line 3 (`server_name 136.115.62.107 _;`) | **No** — system config on the GCP box | Replaced in the migration by `deploy/nginx-aegisflow.conf`, which uses `AEGISFLOW_DOMAIN_PLACEHOLDER` |
+| `/etc/nginx/sites-available/caribsecure` line 3 (`server_name 136.115.62.107 _;`) | **No** — system config on the GCP box | Superseded by `deploy/nginx-aegisflow.conf`, whose `server_name` is `aegisflow.vincypros.com` |
 | `~/.bash_history`, `~/.claude/history.jsonl` | **No** — shell/tool history | Non-functional; records of past `sed` edits |
 | repo tracked files, `.git/config`, `.env`, `private_uploads/`, `private_exports/`, `db_backups/*.sql`, `~/.ssh/` | — | **not present in any of them** |
 
-`.env`'s current `DJANGO_ALLOWED_HOSTS` is `localhost,127.0.0.1` — the IP is **not** in it (bash history shows it was added once and later reverted; the Aug-20 manual `.env` edit that added it was on the legacy `/var/www/caribsecure` prod box, not this tree). On the VPS, `DJANGO_ALLOWED_HOSTS` gets set to the new domain regardless.
+`.env`'s current `DJANGO_ALLOWED_HOSTS` is `localhost,127.0.0.1` — the IP is **not** in it (bash history shows it was added once and later reverted; the Aug-20 manual `.env` edit that added it was on the legacy `/var/www/caribsecure` prod box, not this tree). On the VPS, `DJANGO_ALLOWED_HOSTS` is set to `aegisflow.vincypros.com`.
 
 **Nothing being carried to the VPS contains the GCP IP.**
+
+### Destination
+
+`aegisflow.vincypros.com` → DNS A record `2.25.155.50` (verified). The IP is only the DNS target — it is written into **no** file: nginx `server_name`, `DJANGO_ALLOWED_HOSTS`, and `DJANGO_CSRF_TRUSTED_ORIGINS` all use the hostname. `deploy/nginx-aegisflow.conf` now carries the real `server_name`; the VPS `.env` gets `DJANGO_ALLOWED_HOSTS=aegisflow.vincypros.com` and `DJANGO_CSRF_TRUSTED_ORIGINS=https://aegisflow.vincypros.com`.
 
 Other GCP-adjacent findings:
 - No `*.googleusercontent.com`, no `metadata.google.internal`, no `35.*`/`34.*` literals outside test fixtures.
 - The hostname `caribsecure-demo` appears **only** in one synthetic test fixture — `apps/log_intake/fixtures/linux_auth_sample.log` (sample `auth.log` lines). Not a runtime address; harmless, but you may want to scrub the name.
 - `README.md:143` hard-codes `cd /home/prett/caribsecure_live` (cosmetic doc path, appears once). Update post-move.
-- `endpoint_agent/config.example.toml` and `endpoint_agent/packaging/installer.iss` carry `https://aegisflow.example.org` — an intentional placeholder, not a GCP address.
+- `endpoint_agent/config.example.toml` and `endpoint_agent/packaging/installer.iss` carry `https://aegisflow.example.org` — an intentional placeholder for the Windows agent installer, **not touched in this deployment session**. It gets set to the real backend URL when the installer is built for pilot deployment (Part 4 packaging), a separate task.
 
-**Outside the repo (system config, will not travel):** the live IP `136.115.62.107` is hard-coded in `/etc/nginx/sites-available/caribsecure` (`server_name`). That file stays on the GCP box.
+**Outside the repo (system config, will not travel):** the live IP `136.115.62.107` is hard-coded in `/etc/nginx/sites-available/caribsecure` (`server_name`) on the GCP box. That file stays behind; `deploy/nginx-aegisflow.conf` replaces it.
 
 ---
 
@@ -195,10 +199,10 @@ No Redis, Memcached, RabbitMQ, Node, or build toolchain for assets (static is pr
 ### VPS provisioning steps not done here (Phase 3)
 1. Create service user `aegisflow:aegisflow` (no login shell, home `/opt/aegisflow`).
 2. Check out the repo (with `.git/`) to `/opt/aegisflow/app`; build `venv/`; `pip install -r requirements.txt`.
-3. Hand-transfer `.env` to `/opt/aegisflow/app/.env`, `0600 aegisflow:aegisflow`, with `DJANGO_DEBUG=False` + the real domain + the new `DJANGO_SECURE_*` vars set to production values.
+3. Hand-transfer `.env` to `/opt/aegisflow/app/.env`, `0600 aegisflow:aegisflow`, with `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=aegisflow.vincypros.com`, `DJANGO_CSRF_TRUSTED_ORIGINS=https://aegisflow.vincypros.com`, and the `DJANGO_SECURE_*` vars set to production values.
 4. Transfer `private_uploads/` and `private_exports/` contents.
 5. Create the Postgres role + DB; restore the dump; `manage.py migrate`; `manage.py collectstatic`.
-6. Install both `deploy/` files, swap `AEGISFLOW_DOMAIN_PLACEHOLDER`, point DNS, run `certbot --nginx`.
+6. Install both `deploy/` files as-is (`server_name aegisflow.vincypros.com` already baked in), then `mkdir -p /var/www/certbot`, confirm DNS resolves, and run `sudo certbot --nginx -d aegisflow.vincypros.com`.
 7. `manage.py createuser` for the real login account on the VPS.
 
 ---
