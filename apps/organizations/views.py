@@ -138,10 +138,38 @@ def about_aegisflow(request):
 
 
 def get_agent(request):
+    from apps.endpoints.models import Endpoint
+
+    organization = get_current_organization()
+    endpoints = Endpoint.objects.filter(organization=organization)
+    connected_device_count = endpoints.count()
+    reporting_device_count = endpoints.filter(last_seen__isnull=False).count()
+
+    if reporting_device_count:
+        analyzer_status = "Connected"
+        analyzer_status_tone = "success"
+        analyzer_status_description = (
+            f"{reporting_device_count} enrolled device"
+            f"{' is' if reporting_device_count == 1 else 's are'} sending data to AegisFlow."
+        )
+    elif connected_device_count:
+        analyzer_status = "Awaiting data"
+        analyzer_status_tone = "warning"
+        analyzer_status_description = "Devices are enrolled, but none has reported data yet."
+    else:
+        analyzer_status = "Not configured"
+        analyzer_status_tone = "neutral"
+        analyzer_status_description = "No endpoint devices are enrolled yet."
+
     return render(request, "organizations/get_agent.html", {
-        "page_title": "Get AegisFlow Agent",
-        "page_description": "Download and install the AegisFlow Agent to protect devices that do not already have security monitoring.",
+        "page_title": "Protect Devices",
+        "page_description": "AegisFlow watches for important security problems and alerts you when something needs attention.",
         "active_nav": "agent",
+        "connected_device_count": connected_device_count,
+        "reporting_device_count": reporting_device_count,
+        "analyzer_status": analyzer_status,
+        "analyzer_status_tone": analyzer_status_tone,
+        "analyzer_status_description": analyzer_status_description,
     })
 
 

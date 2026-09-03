@@ -553,6 +553,7 @@ document.addEventListener("DOMContentLoaded", function () {
     syncSidebarState();
 });
 
+
 // Presentation-only experience switch. It never changes roles or permissions.
 (function () {
     var root = document.documentElement;
@@ -560,22 +561,56 @@ document.addEventListener("DOMContentLoaded", function () {
     var trigger = document.querySelector("[data-profile-trigger]");
     var panel = document.querySelector("[data-profile-panel]");
     var choices = document.querySelectorAll("[data-experience-choice]");
+
     function applyExperience(mode) {
         var next = mode === "soc" ? "soc" : "business";
         root.dataset.experience = next;
-        choices.forEach(function (choice) { choice.classList.toggle("is-active", choice.dataset.experienceChoice === next); });
+        choices.forEach(function (choice) {
+            var active = choice.dataset.experienceChoice === next;
+            choice.classList.toggle("is-active", active);
+            if (choice.getAttribute("role") === "radio") {
+                choice.setAttribute("aria-checked", active ? "true" : "false");
+            }
+        });
+        document.querySelectorAll("[data-active-mode-label]").forEach(function (label) {
+            label.textContent = next === "soc" ? "SOC Mode" : "Business Mode";
+        });
         try { localStorage.setItem("aegisflow-experience-mode", next); } catch (error) {}
+
+        var persistence = Promise.resolve();
         if (menu && menu.dataset.experienceUrl) {
             var tokenField = menu.querySelector("[data-experience-form] input[name=csrfmiddlewaretoken]");
-            var data = new FormData(); data.append("mode", next);
-            fetch(menu.dataset.experienceUrl, { method: "POST", headers: tokenField ? { "X-CSRFToken": tokenField.value } : {}, body: data, credentials: "same-origin" }).catch(function () {});
+            var data = new FormData();
+            data.append("mode", next);
+            persistence = fetch(menu.dataset.experienceUrl, {
+                method: "POST",
+                headers: tokenField ? { "X-CSRFToken": tokenField.value } : {},
+                body: data,
+                credentials: "same-origin"
+            }).catch(function () {});
         }
         document.dispatchEvent(new CustomEvent("aegisflow:experience", { detail: { mode: next } }));
+        return persistence;
     }
+
     applyExperience(root.dataset.experience || "soc");
-    if (trigger && panel) trigger.addEventListener("click", function () { var open = panel.hidden; panel.hidden = !open; trigger.setAttribute("aria-expanded", String(open)); });
-    choices.forEach(function (choice) { choice.addEventListener("click", function () { applyExperience(choice.dataset.experienceChoice); if (panel) panel.hidden = true; }); });
-    document.addEventListener("click", function (event) { if (menu && panel && !menu.contains(event.target)) panel.hidden = true; });
+    if (trigger && panel) {
+        trigger.addEventListener("click", function () {
+            var open = panel.hidden;
+            panel.hidden = !open;
+            trigger.setAttribute("aria-expanded", String(open));
+        });
+    }
+    choices.forEach(function (choice) {
+        choice.addEventListener("click", function () {
+            var saved = applyExperience(choice.dataset.experienceChoice);
+            if (panel) panel.hidden = true;
+            saved.finally(function () { window.location.reload(); });
+        });
+    });
+    document.addEventListener("click", function (event) {
+        if (menu && panel && !menu.contains(event.target)) panel.hidden = true;
+    });
 }());
 var settingsThemeToggle = document.querySelector("[data-settings-theme-toggle]");
 if (settingsThemeToggle) settingsThemeToggle.addEventListener("click", function () {

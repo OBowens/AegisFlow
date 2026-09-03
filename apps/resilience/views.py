@@ -182,7 +182,7 @@ def index(request):
 
     return render(
         request,
-        "resilience/index.html",
+        "resilience/business_index.html" if request.session.get("experience_mode") == "business" else "resilience/index.html",
         {
             "page_title": "Disaster Readiness Advisor",
             "page_description": (

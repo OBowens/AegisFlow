@@ -1,0 +1,26 @@
+{% extends "layouts/app_base.html" %}
+{% block title %}Home | {{ BRAND_NAME }}{% endblock %}
+{% block app_content %}
+<div class="af-business-page">
+<header class="af-business-heading"><div><span>Your security today</span><h1>Your Security Overview</h1><p>AegisFlow keeps watch and tells you when something needs your attention.</p></div></header>
+<section class="af-business-hero">
+  <div><span class="af-business-kicker">Current status</span><h2>{% if priority_incident_count %}Needs Attention{% else %}Looking Good{% endif %}</h2><p>{% if priority_incident_count %}{{ priority_incident_count }} important thing{{ priority_incident_count|pluralize }} need{{ priority_incident_count|pluralize:"s," }} your attention. AegisFlow has prioritized what to do first.{% else %}Nothing urgent needs your attention right now.{% endif %}</p>{% if priority_incidents %}<a class="af-business-primary" href="{% url 'incidents:index' %}?tab=queue">Fix the most important one <svg class="icon"><use href="#icon-arrow-right"></use></svg></a>{% endif %}</div>
+  <div class="af-business-status-mark is-{% if priority_incident_count %}warning{% else %}good{% endif %}"><svg class="icon"><use href="#icon-shield-check"></use></svg><strong>{% if priority_incident_count %}Action needed{% else %}Protected{% endif %}</strong></div>
+</section>
+<section class="af-business-stats">
+ <a href="{% url 'incidents:index' %}?tab=queue"><span><svg class="icon"><use href="#icon-warning"></use></svg></span><small>Things to fix</small><strong>{{ priority_incident_count }}</strong><p>Important items AegisFlow recommends checking.</p></a>
+ <a href="{% url 'organizations:get_agent' %}"><span><svg class="icon"><use href="#icon-device"></use></svg></span><small>Protected computers</small><strong>Check devices</strong><p>See which office computers are connected.</p></a>
+ <a href="{% url 'resilience:index' %}"><span><svg class="icon"><use href="#icon-readiness-nav"></use></svg></span><small>Readiness</small><strong>{{ readiness_summary.score_display }}</strong><p>How prepared your business is if something goes wrong.</p></a>
+ <a href="{% url 'resilience:index' %}"><span><svg class="icon"><use href="#icon-database"></use></svg></span><small>Backups</small><strong>Needs Review</strong><p>Make sure your files can be restored.</p></a>
+</section>
+<section class="af-business-grid">
+ <article class="af-business-panel"><header><div><h2>Things to Fix First</h2><p>The actions that will make the biggest difference.</p></div><a href="{% url 'incidents:index' %}?tab=queue">View all</a></header>
+  <div class="af-business-action-list">
+  {% for incident in priority_incidents|slice:":3" %}<div><b>{{ forloop.counter }}</b><span><strong>{% if "sign" in incident.title|lower or "auth" in incident.title|lower %}Review unusual sign-ins{% elif "backup" in incident.title|lower %}Check your backups{% elif "malware" in incident.title|lower %}Suspicious software was blocked{% else %}Check an important security issue{% endif %}</strong><small>AegisFlow found something that may put your business at risk.</small></span><em>{% if incident.severity == "critical" or incident.severity == "high" %}Urgent{% else %}Important{% endif %}</em><a href="{% url 'organizations:app_assistant' %}">Let AegisFlow guide me</a></div>{% empty %}<div class="af-business-empty"><svg class="icon"><use href="#icon-circle-check"></use></svg><span><strong>You’re all caught up</strong><small>No urgent actions are waiting.</small></span></div>{% endfor %}
+  </div>
+ </article>
+ <article class="af-business-panel af-business-protect"><header><div><h2>Protect Your Computers</h2><p>Install AegisFlow on office PCs so it can watch for important problems.</p></div></header><div class="af-business-steps"><span><b>1</b>Download</span><span><b>2</b>Install</span><span><b>3</b>AegisFlow starts watching</span></div><a class="af-business-primary" href="{% url 'organizations:get_agent' %}">Protect another computer</a></article>
+</section>
+<section class="af-business-assistant"><svg class="icon"><use href="#icon-sparkles"></use></svg><div><h2>Ask AegisFlow</h2><p>Get a simple answer or step-by-step help.</p><div><button type="button" data-aegis-open>What should I fix first?</button><button type="button" data-aegis-open>Are my backups safe?</button><button type="button" data-aegis-open>Are my computers protected?</button></div></div><button class="af-business-primary" type="button" data-aegis-open>Ask a question</button></section>
+</div>
+{% endblock %}

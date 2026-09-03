@@ -71,7 +71,7 @@ def dashboard(request):
 
     return render(
         request,
-        "core/dashboard.html",
+        "core/business_dashboard.html" if request.session.get("experience_mode") == "business" else "core/dashboard.html",
         {
             "page_title": "Dashboard",
             "page_description": (

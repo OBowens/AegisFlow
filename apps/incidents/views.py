@@ -183,7 +183,7 @@ def incident_list(request):
     context.update(overview_context)
     context.update(_build_queue_overview_extras(organization, context))
 
-    return render(request, "incidents/list.html", context)
+    return render(request, "incidents/business_list.html" if request.session.get("experience_mode") == "business" else "incidents/list.html", context)
 
 
 @require_POST

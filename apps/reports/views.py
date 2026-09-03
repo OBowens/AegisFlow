@@ -111,7 +111,7 @@ def report_list(request):
 
     return render(
         request,
-        "reports/list.html",
+        "reports/business_list.html" if request.session.get("experience_mode") == "business" else "reports/list.html",
         {
             "page_title": "Reports",
             "page_description": "Executive, technical, incident, risk, and readiness reports generated from AI analysis.",

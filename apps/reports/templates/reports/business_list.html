@@ -1,0 +1,15 @@
+{% extends "layouts/app_base.html" %}
+{% block title %}Reports | {{ BRAND_NAME }}{% endblock %}
+{% block app_content %}
+<div class="af-business-page">
+<header class="af-business-heading"><div><span>Simple summaries</span><h1>Reports</h1><p>Clear reports about your business security and readiness.</p></div></header>
+<section class="af-business-stats">
+ <div class="af-business-stat"><span><svg class="icon"><use href="#icon-reports-nav"></use></svg></span><small>Total reports</small><strong>{{ reports_count }}</strong><p>All reports created for your business.</p></div>
+ <div class="af-business-stat"><span><svg class="icon"><use href="#icon-calendar"></use></svg></span><small>Latest report</small><strong>{% if selected_report %}Ready{% else %}None yet{% endif %}</strong><p>{% if selected_report %}Your newest report is ready to view.{% else %}Create a report when you need one.{% endif %}</p></div>
+</section>
+<section class="af-business-panel"><header><div><h2>Your Reports</h2><p>Open a report to see what is going well and what needs attention.</p></div></header>
+<div class="af-business-report-list">
+{% for row in report_rows %}<article><span><svg class="icon"><use href="#icon-reports-nav"></use></svg></span><div><h2>{{ row.title }}</h2><p>{% if row.type_label == "Technical Report" %}A detailed report prepared for your IT support team.{% elif row.type_label == "Readiness Report" %}How prepared your business is if something goes wrong.{% elif row.type_label == "Risk Report" %}The most important risks to your business right now.{% else %}A clear summary of your security and recommended next steps.{% endif %}</p><small>Created {{ row.date_display }}</small></div><strong>{{ row.status_label }}</strong><a href="{{ row.detail_url }}">View report</a></article>{% empty %}<div class="af-business-empty"><svg class="icon"><use href="#icon-info"></use></svg><span><strong>No reports yet</strong><small>Your reports will appear here when they are ready.</small></span></div>{% endfor %}
+</div></section>
+</div>
+{% endblock %}
