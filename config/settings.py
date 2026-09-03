@@ -78,6 +78,46 @@ DEBUG = env_bool("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
+# Full scheme://host[:port] origins trusted for unsafe (POST) cross-origin
+# requests -- Django's CSRF layer requires this once the app is served from a
+# real domain over HTTPS behind Nginx. Without it, every form POST and AI
+# action button on the deployed site fails CSRF verification. Empty by
+# default so local `runserver` (same-origin http://127.0.0.1:8000) is
+# unaffected. Example prod value:
+#   DJANGO_CSRF_TRUSTED_ORIGINS=https://your-domain.example
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+
+# --- HTTPS / reverse-proxy hardening --------------------------------------
+# Production runs behind Nginx, which terminates TLS and proxies to gunicorn
+# over a local plain-HTTP unix socket. Every switch below is env-gated and
+# defaults to the dev-safe value, so a plain `runserver` box is unchanged.
+#
+# Trust Nginx's X-Forwarded-Proto so request.is_secure(), secure-cookie and
+# redirect logic see the original HTTPS scheme. Only safe because gunicorn
+# is not directly reachable (unix socket) and Nginx always sets this header.
+# Kept as an `if`-gate rather than a plain assignment: an unconditional
+# SECURE_PROXY_SSL_HEADER lets anyone who can reach gunicorn directly spoof
+# the scheme, so the setting simply does not exist unless explicitly enabled.
+if env_bool("DJANGO_SECURE_PROXY_SSL_HEADER", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Send session / CSRF cookies only over HTTPS.
+SESSION_COOKIE_SECURE = env_bool("DJANGO_SESSION_COOKIE_SECURE", False)
+CSRF_COOKIE_SECURE = env_bool("DJANGO_CSRF_COOKIE_SECURE", False)
+
+# Redirect any plain-HTTP request to HTTPS. Nginx does this too once certbot
+# runs; this is the Django-side backstop.
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", False)
+
+# HTTP Strict Transport Security. 0 = off, and that is the default here for
+# BOTH dev and this initial deployment -- do not enable a long max-age until
+# the site has been verified stable over HTTPS. When ready, start small
+# (e.g. 3600) and only later raise toward 31536000 (1 year); enable
+# subdomains/preload last, after the long max-age is proven in the field.
+SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", False)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -178,6 +218,12 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+# `python manage.py collectstatic` writes here. In production Nginx serves
+# this directory directly at STATIC_URL (see deploy/nginx-aegisflow.conf) --
+# there is deliberately NO WhiteNoise (or any other static-serving
+# middleware/dependency): Nginx already sits in front of gunicorn and serves
+# files faster with zero Python in the path. In DEBUG, `runserver` still
+# serves static itself, so local dev needs nothing here.
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
@@ -189,3 +235,62 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:index"
 LOGOUT_REDIRECT_URL = "accounts:login"
+
+# --- Logging -------------------------------------------------------------
+# With DEBUG=False Django no longer echoes tracebacks in the response, and
+# without an explicit config an unhandled 500 would surface only as a bare
+# gunicorn stderr line. WARNING+ always goes to the console (captured by
+# journald under systemd -- `journalctl -u aegisflow`).
+#
+# The durable ERROR-and-above file log (logs/django-errors.log, rotating) is
+# a PRODUCTION-ONLY facility: the log directory and file are created, and the
+# file handler attached, ONLY when DEBUG is False. Under DEBUG -- local
+# `runserver` and the test suite -- nothing touches logs/, so running the
+# tests never spawns a production log file as a side effect. `logs/` is
+# git-ignored.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "{asctime} {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
+
+if not DEBUG:
+    LOG_DIR = BASE_DIR / "logs"
+    LOG_DIR.mkdir(exist_ok=True)
+    LOGGING["handlers"]["error_file"] = {
+        "class": "logging.handlers.RotatingFileHandler",
+        "filename": str(LOG_DIR / "django-errors.log"),
+        "maxBytes": 5 * 1024 * 1024,
+        "backupCount": 5,
+        "level": "ERROR",
+        "formatter": "standard",
+    }
+    for _log_name in ("django", "django.request"):
+        LOGGING["loggers"][_log_name]["handlers"].append("error_file")

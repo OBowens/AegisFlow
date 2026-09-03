@@ -1,0 +1,84 @@
+# deploy/aegisflow.service  --  DRAFT for review (Phase 2). NOT installed.
+#
+# Phase 3 install target:  /etc/systemd/system/aegisflow.service
+#   sudo cp deploy/aegisflow.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aegisflow.service
+#
+# Assumptions baked into the paths below (all Phase 3 VPS provisioning):
+#   * App checked out at        /opt/aegisflow/app        (the git working tree,
+#                                                          .git and all, moved
+#                                                          from ~/caribsecure_live)
+#   * virtualenv at             /opt/aegisflow/app/venv    (gunicorn already in
+#                                                          requirements.txt)
+#   * Runs as service user      aegisflow:aegisflow        (no login shell,
+#                                                          home = /opt/aegisflow,
+#                                                          created in Phase 3)
+#   * .env lives at             /opt/aegisflow/app/.env    (transferred by hand,
+#                                                          0600 aegisflow:aegisflow;
+#                                                          config/settings.py reads
+#                                                          it itself -- no
+#                                                          EnvironmentFile= needed)
+#   * gunicorn listens on a unix socket, not a TCP port; Nginx proxies to it
+#     (see deploy/nginx-aegisflow.conf).
+#
+# Adjust WorkingDirectory / ExecStart / User if you deploy somewhere else.
+
+[Unit]
+Description=AegisFlow AI (gunicorn / Django)
+Documentation=https://claude.ai/code/session_01Pegwr746H4rJEP8PqV4nuX
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=notify
+User=aegisflow
+Group=aegisflow
+WorkingDirectory=/opt/aegisflow/app
+Environment=DJANGO_SETTINGS_MODULE=config.settings
+Environment=PYTHONUNBUFFERED=1
+
+# systemd creates/owns /run/aegisflow (0750) and cleans it up on stop.
+# The socket path here MUST match `upstream` in deploy/nginx-aegisflow.conf.
+RuntimeDirectory=aegisflow
+RuntimeDirectoryMode=0750
+
+ExecStart=/opt/aegisflow/app/venv/bin/gunicorn config.wsgi:application \
+    --name aegisflow \
+    --workers 3 \
+    --bind unix:/run/aegisflow/gunicorn.sock \
+    --umask 007 \
+    --timeout 60 \
+    --graceful-timeout 30 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --access-logfile - \
+    --error-logfile - \
+    --capture-output
+# --workers 3 is a conservative default (rule of thumb: 2*CPU cores + 1).
+# Retune once the VPS core count is known.
+# --access-logfile - / --error-logfile - / --capture-output send everything
+# to stdout/stderr, which journald captures (journalctl -u aegisflow).
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+Restart=on-failure
+RestartSec=3
+
+# --- Sandboxing ---------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Everything the app writes at runtime lives under the project dir:
+#   logs/, private_uploads/, private_exports/, staticfiles/, db_backups/
+ReadWritePaths=/opt/aegisflow/app
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
