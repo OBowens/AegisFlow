@@ -84,7 +84,7 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 # action button on the deployed site fails CSRF verification. Empty by
 # default so local `runserver` (same-origin http://127.0.0.1:8000) is
 # unaffected. Example prod value:
-#   DJANGO_CSRF_TRUSTED_ORIGINS=https://your-domain.example
+#   DJANGO_CSRF_TRUSTED_ORIGINS=https://aegisflow.vincypros.com
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 
 # --- HTTPS / reverse-proxy hardening --------------------------------------
