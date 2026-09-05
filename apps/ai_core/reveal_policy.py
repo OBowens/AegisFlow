@@ -5,7 +5,13 @@ become the display default everywhere (see ``apps/ai_core/models.py``'s
 ``AliasMapping`` and ``apps/ai_core/services/alias_engine.py``), with a real
 value shown only through an explicit reveal action. ``can_reveal`` is the
 single choke point that reveal action is required to call before it hands
-back a real value.
+back a real value. The reveal action itself lives in ``apps/ai_core/views.py``
+(``reveal_alias``), which looks the ``AliasMapping`` up scoped to the
+current organization (never a bare pk lookup -- every other org-owned
+model in this codebase, e.g. ``Endpoint``, ``EndpointEvent``,
+``IncidentGroup``, is looked up the same way) and writes an ``AuditLog``
+row for every attempt that reaches it, including a not-found lookup --
+see that module's docstring for the exact, tested logging guarantee.
 
 Today's check is deliberately trivial: authentication only, via
 ``user.is_authenticated`` -- the exact same access level
