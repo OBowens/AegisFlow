@@ -6,6 +6,7 @@ from config.testcase import AuthedTestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.ai_core.models import AliasMapping
 from apps.ai_core.orchestrator import run_demo_log_workflow
 from apps.log_intake.models import ParsedAlert, UploadedLogFile
 from apps.organizations.models import Organization
@@ -249,8 +250,20 @@ class IncidentDetailEvidenceAndGapsFullListTestCase(AuthedTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.incident.title)
         content = response.content.decode()
+        # Each evidence card's source IP renders as its stable structured
+        # alias (Part 4), never the real value -- one distinct alias per
+        # distinct IP, so all 7 items appearing proves no per-group cap.
+        ip_aliases = {
+            mapping.display_alias
+            for mapping in AliasMapping.objects.filter(
+                organization=self.organization, identifier_type="IP"
+            )
+        }
+        self.assertEqual(len(ip_aliases), 7)
+        for alias in ip_aliases:
+            self.assertIn(alias, content)
         for source_ip in ("203.0.113.1", "203.0.113.4", "203.0.113.7"):
-            self.assertIn(source_ip, content)
+            self.assertNotIn(source_ip, content)
         self.assertContains(response, "Failed Login Events")
         self.assertContains(response, "Malware Alert")
         self.assertContains(response, "Firewall Denied")
@@ -304,7 +317,13 @@ class IncidentDetailEvidenceAndGapsFullListTestCase(AuthedTestCase):
         self.assertNotContains(gaps_response, "Unrelated gap finding")
 
         other_evidence_response = self.client.get(reverse("incidents:evidence", args=[other_incident.id]))
-        self.assertContains(other_evidence_response, "198.51.100.99")
+        other_ip_alias = AliasMapping.objects.get(
+            organization=self.organization,
+            identifier_type="IP",
+            real_value="198.51.100.99",
+        ).display_alias
+        self.assertContains(other_evidence_response, other_ip_alias)
+        self.assertNotIn("198.51.100.99", other_evidence_response.content.decode())
         for gap_name in self.gap_names:
             self.assertNotIn(gap_name, other_evidence_response.content.decode())
 

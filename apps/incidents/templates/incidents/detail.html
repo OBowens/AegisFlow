@@ -1,4 +1,5 @@
 {% extends "layouts/app_base.html" %}
+{% load alias_display %}
 
 {% block title %}Incident Detail | {{ BRAND_NAME }}{% endblock %}
 
@@ -58,7 +59,7 @@
                 </div>
                 <div class="incident-meta-chip-group">
                     <span>Affected System</span>
-                    <span class="incident-meta-chip incident-meta-chip--blue">{{ primary_system }}</span>
+                    <span class="incident-meta-chip incident-meta-chip--blue">{% alias_field primary_system "HOST" incident.organization %}</span>
                 </div>
                 <div class="incident-meta-chip-group">
                     <span>Critical System Match</span>
@@ -123,7 +124,7 @@
             <svg class="icon"><use href="#icon-building"></use></svg>
             <div>
                 <span>Organization</span>
-                <strong>{{ incident.organization.name }}</strong>
+                <strong>{% alias_field incident.organization.name "ORG" incident.organization %}</strong>
             </div>
         </div>
         <div class="incident-hero-fact">
@@ -450,7 +451,7 @@
             <li>
                 <span class="incident-evidence-dot"></span>
                 <span>{{ match.detected_display }}</span>
-                <strong>{{ match.source_ip }}</strong>
+                <strong>{% alias_field match.source_ip "IP" incident.organization %}</strong>
                 <a class="link-inline" href="{{ match.incident_url }}">
                     <span>{{ match.incident_title }}</span>
                     <svg class="icon"><use href="#icon-arrow-right"></use></svg>
@@ -739,7 +740,7 @@
             <div class="status-row">
                 <span class="status-row__dot status-row__dot--{% if critical_system_match.matched %}{{ critical_system_match.criticality }}{% else %}good{% endif %}"></span>
                 <span class="status-row__label">Primary System</span>
-                <span class="status-row__value">{{ primary_system }}</span>
+                <span class="status-row__value">{% alias_field primary_system "HOST" incident.organization %}</span>
             </div>
             <div class="status-row">
                 <span class="status-row__dot status-row__dot--{% if critical_system_match.matched %}{{ critical_system_match.criticality }}{% else %}good{% endif %}"></span>
@@ -758,7 +759,7 @@
         </div>
 
         {% if incident.affected_systems %}
-            <p class="incident-risk-text">{{ incident.affected_systems }}</p>
+            <p class="incident-risk-text">{{ affected_systems_display }}</p>
         {% endif %}
     </article>
 </div>

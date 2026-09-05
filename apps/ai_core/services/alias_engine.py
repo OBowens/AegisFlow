@@ -30,6 +30,7 @@ scope (accepted residual risk).
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -290,17 +291,51 @@ class PersistentAliasStore:
     def __init__(self, organization) -> None:
         self.organization = organization
         self._touched: dict[tuple[str, str], "AliasMapping"] = {}
+        self._preloaded = False
 
-    def token_for(self, real: str, label: str, *, key: str | None = None) -> str:
+    def preload(self) -> None:
+        """Bulk-fetch this org's existing mappings in one query so the
+        display-time get-or-create calls that follow (see
+        :func:`get_request_alias_store` and :func:`warm_display_aliases`) are
+        cache reads rather than a point query each."""
+        if self._preloaded:
+            return
+        from apps.ai_core.models import AliasMapping
+
+        for mapping in AliasMapping.objects.filter(organization=self.organization):
+            norm = (
+                mapping.normalized_value
+                if mapping.identifier_type == "IP"
+                else mapping.normalized_value.lower()
+            )
+            self._touched.setdefault((mapping.identifier_type, norm), mapping)
+        self._preloaded = True
+
+    def mapping_for(self, real: str, label: str, *, key: str | None = None):
+        """The ``AliasMapping`` row for ``real`` (get-or-create, cached for the
+        life of this store). ``token_for`` and ``display_alias_for`` are thin
+        accessors over this -- one get-or-create implementation, two display
+        conventions (the ``[[IP_1]]`` AI token vs. the ``[IP_001]`` on-screen
+        label)."""
         norm = key if key is not None else real
         norm = norm if label == "IP" else norm.lower()
         cache_key = (label, norm)
         cached = self._touched.get(cache_key)
         if cached is not None:
-            return cached.ai_token
+            return cached
         mapping = self._get_or_create(label, norm, real)
         self._touched[cache_key] = mapping
-        return mapping.ai_token
+        return mapping
+
+    def token_for(self, real: str, label: str, *, key: str | None = None) -> str:
+        return self.mapping_for(real, label, key=key).ai_token
+
+    def display_alias_for(self, real: str, label: str, *, key: str | None = None) -> str:
+        # A missing-value placeholder ("Unknown system", "Unassigned", ...)
+        # is not an identifier -- render it as-is, never mint a row for it.
+        if is_non_identity_sentinel(real):
+            return str(real)
+        return self.mapping_for(real, label, key=key).display_alias
 
     @property
     def mapping(self) -> dict:
@@ -491,3 +526,122 @@ def run_passes(text: str, known: dict, store: AliasStore) -> str:
     out = _dict_pass(out, known.get("USER", ()), "USER", store)
 
     return out
+
+
+# ---------------------------------------------------------------------------
+# display-time substitution (Part 4: structured-field alias display)
+#
+# The AI-boundary sanitizer above is untouched. This section is the *display*
+# side: rendering a structured identifier column (an alert's affected system,
+# a source IP, an incident owner) as its stable ``AliasMapping`` label instead
+# of the real value, reusing the exact same org-scoped mapping the AI boundary
+# uses so a value reads identically in both places.
+#
+# Free-text/prose sanitization and the click-to-reveal control are a later
+# part of the overhaul and deliberately not here.
+# ---------------------------------------------------------------------------
+
+# A displayed alias label as it round-trips through a filter dropdown's
+# submitted value, e.g. "HOST_3" (bare) or "[HOST_003]" (rendered).
+_ALIAS_LABEL_RE = re.compile(r"^(?:\[\[|\[)?([A-Z]+)_(\d+)(?:\]\]|\])?$")
+
+# Placeholder strings the view layer substitutes for a *missing* value --
+# "Unknown system" when an alert/incident has no affected system,
+# "AegisFlow AI"/"Unassigned"/"You" for an absent or self owner. They are
+# not identifiers, so they must never be minted into an AliasMapping row or
+# rendered as an alias. Compared case-folded.
+_NON_IDENTITY_SENTINELS = frozenset(
+    {
+        "unknown system",
+        "unknown source",
+        "unassigned",
+        "you",
+        "system",
+        "system workflow",
+        "aegisflow ai",
+        "linked alert",
+        "not recorded",
+        "not a recognized critical system",
+        "n/a",
+    }
+)
+
+
+def is_non_identity_sentinel(value) -> bool:
+    return str(value or "").strip().casefold() in _NON_IDENTITY_SENTINELS
+
+
+def identifier_type_for_system(value) -> str:
+    """The ``AliasMapping`` identifier type for a structured system-like value.
+
+    Several parsers intentionally put an address in ``affected_system``, so
+    the type is decided by the value, not the column: a dotted quad is an IP,
+    everything else is treated as a host.
+    """
+    value = str(value or "").strip()
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        return "HOST"
+    return "IP"
+
+
+def get_request_alias_store(request, organization) -> "PersistentAliasStore":
+    """One preloaded ``PersistentAliasStore`` per (request, organization), so
+    every display-time lookup on one page render shares a single get-or-create
+    cache and a single bulk fetch. Stashed on the request; gone when it is."""
+    if organization is None:
+        return PersistentAliasStore(organization)
+    if request is None:
+        store = PersistentAliasStore(organization)
+        store.preload()
+        return store
+    cache = getattr(request, "_alias_stores", None)
+    if cache is None:
+        cache = {}
+        request._alias_stores = cache
+    store = cache.get(organization.pk)
+    if store is None:
+        store = PersistentAliasStore(organization)
+        store.preload()
+        cache[organization.pk] = store
+    return store
+
+
+def warm_display_aliases(store, entries) -> None:
+    """The single per-view seam where a page's structured-identifier aliases
+    are minted. ``entries`` is an iterable of ``(value, identifier_type)``.
+    Call this once near the top of a view with everything the page will
+    display; the ``{% alias_field %}`` tag and the helpers below are then
+    cache reads. (They still get-or-create on a miss for correctness -- a miss
+    means an identifier the view's warm set didn't list.)"""
+    for value, identifier_type in entries:
+        text = str(value).strip() if value is not None else ""
+        if text and not is_non_identity_sentinel(text):
+            store.mapping_for(text, identifier_type)
+
+
+def resolve_alias_label_to_real_value(organization, alias_label: str) -> str | None:
+    """Inverse of the displayed label: given "HOST_3" (as submitted by a
+    filter dropdown whose options are alias labels), return the real value it
+    stands for, or ``None`` if it is malformed or resolves to no row for this
+    organization. Callers must treat ``None`` as "no match" and never fall
+    back to the raw submitted string, or a client could bypass the alias by
+    typing the real value into the query string."""
+    from apps.ai_core.models import AliasMapping
+
+    match = _ALIAS_LABEL_RE.match(alias_label or "")
+    if not match:
+        return None
+    identifier_type, sequence = match.group(1), int(match.group(2))
+    if identifier_type not in AliasMapping.IdentifierType.values:
+        return None
+    return (
+        AliasMapping.objects.filter(
+            organization=organization,
+            identifier_type=identifier_type,
+            sequence=sequence,
+        )
+        .values_list("real_value", flat=True)
+        .first()
+    )

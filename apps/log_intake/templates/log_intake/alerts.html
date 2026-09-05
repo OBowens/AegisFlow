@@ -1,4 +1,5 @@
 {% extends "layouts/app_base.html" %}
+{% load alias_display %}
 
 {% block title %}{{ page_title }} | {{ BRAND_NAME }}{% endblock %}
 
@@ -89,8 +90,8 @@
 
                     <div class="incident-queue-card__meta">
                         <span>{{ alert.source_tool }}</span>
-                        <span>{{ alert.affected_system }}</span>
-                        {% if alert.account %}<span>{{ alert.account }}</span>{% endif %}
+                        <span>{% alias_field alert.affected_system "HOST" alert.organization %}</span>
+                        {% if alert.account %}<span>{% alias_field alert.account "USER" alert.organization %}</span>{% endif %}
                         {% if not scoped_uploaded_file and alert.uploaded_file_name %}
                             <span>{{ alert.uploaded_file_name }}</span>
                         {% endif %}

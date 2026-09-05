@@ -12,7 +12,8 @@ replacing the old workflow_state["assigned_to"] display-name string):
   action that can always overwrite an existing assignment.
 - The workflow flowbar pill and the two incident-detail "Assigned to"
   spots all say "you"/"Your investigation" for the current user's own
-  assignment, and the real name for anyone else's.
+  assignment, and the owner's stable structured alias (Part 4) for
+  anyone else's.
 - The Work Queue's "Mine" filter pill filters on the real FK.
 """
 
@@ -20,6 +21,7 @@ from django.contrib.auth import get_user_model
 from config.testcase import AuthedTestCase
 from django.urls import reverse
 
+from apps.ai_core.models import AliasMapping
 from apps.organizations.models import Organization
 
 from .models import IncidentGroup
@@ -140,14 +142,28 @@ class AssignmentRenderingTestCase(AuthedTestCase):
         self.assertIn("<dt>Assigned to</dt><dd>You</dd>", html)
         self.assertNotIn("Test Analyst", html.split("Assigned to")[1][:60])
 
-    def test_detail_page_shows_the_real_name_for_someone_elses_assignment(self):
+    def test_detail_page_shows_the_aliased_owner_for_someone_elses_assignment(self):
+        # Someone else's name is a structured PERSON identifier -- Part 4
+        # renders it as its stable alias, not the real name.
         incident = _make_incident(self.organization, assigned_to=self.colleague)
 
         response = self.client.get(reverse("incidents:detail", args=[incident.id]))
         html = response.content.decode()
 
-        self.assertIn("<small>Assigned to</small><strong>Jane Ortiz</strong>", html)
-        self.assertIn("<dt>Assigned to</dt><dd>Jane Ortiz</dd>", html)
+        owner_alias = AliasMapping.objects.get(
+            organization=self.organization,
+            identifier_type="PERSON",
+            real_value="Jane Ortiz",
+        ).display_alias
+        self.assertIn(
+            f'<small>Assigned to</small><strong><span class="af-alias">{owner_alias}</span></strong>',
+            html,
+        )
+        self.assertIn(
+            f'<dt>Assigned to</dt><dd><span class="af-alias">{owner_alias}</span></dd>',
+            html,
+        )
+        self.assertNotIn("Jane Ortiz", html)
 
     def test_detail_page_says_unassigned_when_nobody_owns_it(self):
         incident = _make_incident(self.organization)
@@ -168,14 +184,20 @@ class AssignmentRenderingTestCase(AuthedTestCase):
         self.assertIn('<p class="af-assignment-pill is-you">', html)
         self.assertIn("Your investigation", html)
 
-    def test_workflow_flowbar_pill_shows_the_real_name_for_someone_else(self):
+    def test_workflow_flowbar_pill_shows_the_aliased_owner_for_someone_else(self):
         incident = _make_incident(self.organization, assigned_to=self.colleague)
 
         response = self.client.get(reverse("incidents:workflow", args=[incident.id, "understand"]))
         html = response.content.decode()
 
+        owner_alias = AliasMapping.objects.get(
+            organization=self.organization,
+            identifier_type="PERSON",
+            real_value="Jane Ortiz",
+        ).display_alias
         self.assertIn('<p class="af-assignment-pill is-other">', html)
-        self.assertIn("Assigned to Jane Ortiz", html)
+        self.assertIn(f'Assigned to <span class="af-alias">{owner_alias}</span>', html)
+        self.assertNotIn("Jane Ortiz", html)
 
     def test_workflow_flowbar_pill_says_unassigned_when_nobody_owns_it(self):
         incident = _make_incident(self.organization)

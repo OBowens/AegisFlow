@@ -16,6 +16,13 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.ai_core.orchestrator import run_demo_log_workflow
+from apps.ai_core.services.alias_engine import (
+    get_request_alias_store,
+    identifier_type_for_system,
+    is_non_identity_sentinel,
+    resolve_alias_label_to_real_value,
+    warm_display_aliases,
+)
 from apps.audit.models import AIRun
 from apps.incidents.models import IncidentGroup
 from apps.organizations.services.current_organization import get_current_organization
@@ -244,7 +251,7 @@ def log_file_list(request):
     return redirect(target)
 
 
-def build_overview_and_alerts_context(request):
+def build_overview_and_alerts_context(request, organization):
     """Org-wide parsed-alert/risk/gap data for incidents:index's Overview
     and Alerts tabs. Lives here (not in apps/incidents) because it's
     fundamentally log-intake domain data -- uploads and parsed alerts --
@@ -287,17 +294,33 @@ def build_overview_and_alerts_context(request):
 
     alert_severity_filter = request.GET.get("alert_severity", "").strip()
     alert_source_filter = request.GET.get("alert_source", "").strip()
+    # alert_system_filter is submitted as its displayed alias label (e.g.
+    # "HOST_3"), never the real system name -- see alert_system_options
+    # below. Resolve back to the real value before filtering; an
+    # unresolvable label must yield zero rows, not an unfiltered list.
     alert_system_filter = request.GET.get("alert_system", "").strip()
-    filtered_parsed_alerts = _apply_alert_filters(
-        parsed_alerts,
-        severity=alert_severity_filter,
-        source=alert_source_filter,
-        affected_system=alert_system_filter,
+    alert_system_filter_real = (
+        resolve_alias_label_to_real_value(organization, alert_system_filter)
+        if alert_system_filter
+        else None
+    )
+    filtered_parsed_alerts = (
+        _apply_alert_filters(
+            parsed_alerts,
+            severity=alert_severity_filter,
+            source=alert_source_filter,
+            affected_system=alert_system_filter_real,
+        )
+        if not alert_system_filter or alert_system_filter_real
+        else parsed_alerts.none()
     )
     parsed_alert_rows = _build_parsed_alert_rows(filtered_parsed_alerts)
     parsed_alert_total_filtered = filtered_parsed_alerts.count()
     alert_source_options = _distinct_values(parsed_alerts, "source_tool")
-    alert_system_options = _distinct_values(parsed_alerts, "affected_system")
+    alert_system_options = _aliased_system_filter_options(
+        get_request_alias_store(request, organization),
+        _distinct_values(parsed_alerts, "affected_system"),
+    )
 
     # This page isn't scoped to a single upload (it spans every upload in
     # the org), so there's no uploaded_file id to hand to log_intake:alerts
@@ -420,17 +443,33 @@ def log_analysis_results(request, uploaded_file_id: int):
 
     alert_severity_filter = request.GET.get("alert_severity", "").strip()
     alert_source_filter = request.GET.get("alert_source", "").strip()
+    # alert_system_filter is submitted as its displayed alias label (e.g.
+    # "HOST_3"), never the real system name -- see alert_system_options
+    # below. Resolve back to the real value before filtering; an
+    # unresolvable label must yield zero rows, not an unfiltered list.
     alert_system_filter = request.GET.get("alert_system", "").strip()
-    filtered_parsed_alerts = _apply_alert_filters(
-        parsed_alerts,
-        severity=alert_severity_filter,
-        source=alert_source_filter,
-        affected_system=alert_system_filter,
+    alert_system_filter_real = (
+        resolve_alias_label_to_real_value(uploaded_file.organization, alert_system_filter)
+        if alert_system_filter
+        else None
+    )
+    filtered_parsed_alerts = (
+        _apply_alert_filters(
+            parsed_alerts,
+            severity=alert_severity_filter,
+            source=alert_source_filter,
+            affected_system=alert_system_filter_real,
+        )
+        if not alert_system_filter or alert_system_filter_real
+        else parsed_alerts.none()
     )
     parsed_alert_rows = _build_parsed_alert_rows(filtered_parsed_alerts)
     parsed_alert_total_filtered = filtered_parsed_alerts.count()
     alert_source_options = _distinct_values(parsed_alerts, "source_tool")
-    alert_system_options = _distinct_values(parsed_alerts, "affected_system")
+    alert_system_options = _aliased_system_filter_options(
+        get_request_alias_store(request, uploaded_file.organization),
+        _distinct_values(parsed_alerts, "affected_system"),
+    )
 
     # Same pattern as log_file_list's "View all N alerts" link, except this
     # page IS scoped to a single upload, so uploaded_file_id is passed
@@ -480,6 +519,7 @@ def log_analysis_results(request, uploaded_file_id: int):
         "log_intake/results.html",
         {
             "uploaded_file": uploaded_file,
+            "organization": uploaded_file.organization,
             "parsed_alerts": parsed_alerts,
             "parsed_alert_rows": parsed_alert_rows,
             "parsed_alert_total_filtered": parsed_alert_total_filtered,
@@ -532,6 +572,11 @@ def alert_list(request):
     uploaded_file_id = request.GET.get("uploaded_file", "").strip()
     severity_filter = request.GET.get("severity", "").strip()
     source_filter = request.GET.get("source", "").strip()
+    # affected_system_filter is submitted as its displayed alias label
+    # (e.g. "HOST_3"), never the real system name -- see
+    # affected_system_options below. Resolve back to the real value
+    # before filtering; an unresolvable label must yield zero rows, not
+    # an unfiltered list.
     affected_system_filter = request.GET.get("affected_system", "").strip()
 
     alerts = ParsedAlert.objects.select_related("uploaded_file", "organization").order_by("-created_at")
@@ -541,18 +586,38 @@ def alert_list(request):
         scoped_uploaded_file = get_object_or_404(UploadedLogFile, pk=uploaded_file_id)
         alerts = alerts.filter(uploaded_file=scoped_uploaded_file)
 
-    option_base = alerts
-    alerts = _apply_alert_filters(
-        alerts,
-        severity=severity_filter,
-        source=source_filter,
-        affected_system=affected_system_filter,
-    )
-
     organization = (
         scoped_uploaded_file.organization
         if scoped_uploaded_file
         else get_current_organization()
+    )
+
+    option_base = alerts
+    affected_system_filter_real = (
+        resolve_alias_label_to_real_value(organization, affected_system_filter)
+        if affected_system_filter
+        else None
+    )
+    alerts = (
+        _apply_alert_filters(
+            alerts,
+            severity=severity_filter,
+            source=source_filter,
+            affected_system=affected_system_filter_real,
+        )
+        if not affected_system_filter or affected_system_filter_real
+        else alerts.none()
+    )
+
+    alias_store = get_request_alias_store(request, organization)
+    affected_system_options = _aliased_system_filter_options(
+        alias_store, _distinct_values(option_base, "affected_system")
+    )
+    # alerts.html also renders the account column through {% alias_field %};
+    # warm those here too so the row tags stay cache reads.
+    warm_display_aliases(
+        alias_store,
+        ((account, "USER") for account in _distinct_values(option_base, "account")),
     )
 
     return render(
@@ -566,6 +631,7 @@ def alert_list(request):
             ),
             "page_description": "Every parsed alert, filterable by severity, source, and affected system.",
             "active_nav": "analysis_results",
+            "organization": organization,
             "organization_name": organization.name if organization else "Demo Organization",
             "organization_plan": "Small Business Plan",
             "dashboard_updated_at": _format_dashboard_datetime(timezone.now()),
@@ -574,7 +640,7 @@ def alert_list(request):
             "alert_count": alerts.count(),
             "severity_options": ParsedAlert.SeverityHint.choices,
             "source_options": _distinct_values(option_base, "source_tool"),
-            "affected_system_options": _distinct_values(option_base, "affected_system"),
+            "affected_system_options": affected_system_options,
             "selected_severity": severity_filter,
             "selected_source": source_filter,
             "selected_affected_system": affected_system_filter,
@@ -588,6 +654,7 @@ def _build_alert_list_cards(alerts):
         timestamp_value = alert.timestamp or alert.created_at
         cards.append(
             {
+                "organization": alert.organization,
                 "id": alert.id,
                 "summary": alert.normalized_summary or alert.event_type,
                 "source_tool": alert.source_tool or "Unknown source",
@@ -897,12 +964,36 @@ def _distinct_values(queryset, field_name):
     )
 
 
+def _aliased_system_filter_options(store, system_names):
+    """The single per-view seam where an affected-system filter dropdown's
+    aliases are minted (see
+    apps/ai_core/services/alias_engine.warm_display_aliases). Returns the
+    options as sorted ``[HOST_003]`` display labels; the ``{% alias_field %}``
+    tags on the alert rows below then read from the same warmed store.
+    Ordered by the mapping's sequence so ``[HOST_2]`` sorts before
+    ``[HOST_10]`` the way a person expects, not lexically."""
+    entries = [
+        (name, identifier_type_for_system(name))
+        for name in system_names
+        if name and not is_non_identity_sentinel(name)
+    ]
+    warm_display_aliases(store, entries)
+    return [
+        mapping.display_alias
+        for mapping in sorted(
+            (store.mapping_for(name, identifier_type) for name, identifier_type in entries),
+            key=lambda mapping: mapping.sequence,
+        )
+    ]
+
+
 def _build_parsed_alert_rows(parsed_alerts):
     rows = []
     for alert in parsed_alerts[:9]:
         timestamp_value = alert.timestamp or alert.created_at
         rows.append(
             {
+                "organization": alert.organization,
                 "summary": alert.normalized_summary or alert.event_type,
                 "source_tool": alert.source_tool or "Unknown source",
                 "severity": alert.severity_hint,
@@ -929,6 +1020,7 @@ def _build_incident_cards(incidents):
 
         cards.append(
             {
+                "organization": incident.organization,
                 "id": incident.id,
                 "title": incident.title,
                 "severity": incident.severity,

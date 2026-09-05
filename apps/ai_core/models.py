@@ -78,6 +78,14 @@ class AliasMapping(models.Model):
         return f"{self.identifier_type}_{self.sequence}"
 
     @property
+    def display_alias(self) -> str:
+        """On-screen form of the alias, zero-padded for stable column width,
+        e.g. ``[IP_007]``. Presentation only -- the stored ``sequence`` and
+        the ``ai_token`` form are unchanged, so an existing ``IP_1`` row just
+        renders as ``[IP_001]`` without any renumbering."""
+        return f"[{self.identifier_type}_{self.sequence:03d}]"
+
+    @property
     def ai_token(self) -> str:
         """Exact format the AI-boundary sanitizer has always emitted, e.g.
         ``"[[IP_1]]"`` -- unpadded, double-bracketed. Kept as-is so

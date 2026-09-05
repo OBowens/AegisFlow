@@ -16,6 +16,12 @@ from apps.ai_core.modules.report_writer import run_report_generation
 from apps.ai_core.modules.workflow_advisor import run_workflow_next_step, run_workflow_step_question
 from apps.ai_core.modules.writer import run_playbook_generation
 from apps.ai_core.rate_limit import deny_ai_call
+from apps.ai_core.services.alias_engine import (
+    get_request_alias_store,
+    identifier_type_for_system,
+    resolve_alias_label_to_real_value,
+    warm_display_aliases,
+)
 from apps.audit.models import AIRun, AuditLog
 from apps.log_intake.views import build_overview_and_alerts_context
 from apps.organizations.models import CriticalSystem
@@ -77,9 +83,33 @@ def incident_list(request):
     # moment it became the most-recently-updated incident.
     organization = get_current_organization()
 
+    # Single seam where the Queue tab's structured-identifier aliases are
+    # minted (the affected-system filter options and the card fields); the
+    # alias_field tags and helpers below read from the warmed per-request
+    # store. See apps/ai_core/services/alias_engine.warm_display_aliases.
+    warm_display_aliases(
+        get_request_alias_store(request, organization),
+        (
+            (system, identifier_type_for_system(system))
+            for value in incidents.values_list("affected_systems", flat=True)
+            for system in _split_system_names(value)
+        ),
+    )
+
     severity_filter = request.GET.get("severity", "").strip()
     status_filter = request.GET.get("status", "").strip()
+    # affected_system_filter is submitted as its displayed alias label (e.g.
+    # "HOST_3"), never the real system name -- the dropdown never renders
+    # the real value at all (see affected_system_options below). Resolve it
+    # back to the real value the DB actually holds before filtering; an
+    # unresolvable label (stale/tampered) must yield zero rows, not an
+    # unfiltered list.
     affected_system_filter = request.GET.get("affected_system", "").strip()
+    affected_system_filter_real = (
+        resolve_alias_label_to_real_value(organization, affected_system_filter)
+        if affected_system_filter
+        else None
+    )
     assigned_filter = request.GET.get("assigned", "").strip()
     investigation_filter = request.GET.get("investigation_state", "").strip()
 
@@ -90,7 +120,11 @@ def incident_list(request):
     if status_filter:
         filtered_incidents = filtered_incidents.filter(status=status_filter)
     if affected_system_filter:
-        filtered_incidents = filtered_incidents.filter(affected_systems__icontains=affected_system_filter)
+        filtered_incidents = (
+            filtered_incidents.filter(affected_systems__icontains=affected_system_filter_real)
+            if affected_system_filter_real
+            else filtered_incidents.none()
+        )
     if assigned_filter == "me" and request.user.is_authenticated:
         filtered_incidents = filtered_incidents.filter(assigned_to=request.user)
 
@@ -116,6 +150,7 @@ def incident_list(request):
     my_investigation_cards = _build_incident_list_cards(
         incidents.filter(assigned_to=request.user) if request.user.is_authenticated else incidents.none(),
         current_user=request.user,
+        request=request,
     )
     priority = {"in_progress": 0, "waiting": 1, "assigned": 2, "resolved": 3, "closed": 4}
     my_investigation_cards.sort(key=lambda card: (priority[card["investigation_state"]], -card["updated_timestamp"]))
@@ -125,18 +160,26 @@ def incident_list(request):
         "resolved": sum(card["investigation_state"] == "resolved" for card in my_investigation_cards),
         "closed": sum(card["investigation_state"] == "closed" for card in my_investigation_cards),
     }
-    affected_system_options = sorted(
-        {
-            _primary_affected_system(value)
-            for value in incidents.values_list("affected_systems", flat=True)
-            if value
-        }
-    )
+    affected_system_store = get_request_alias_store(request, organization)
+    affected_system_mappings = {
+        affected_system_store.mapping_for(
+            _primary_affected_system(value),
+            identifier_type_for_system(_primary_affected_system(value)),
+        )
+        for value in incidents.values_list("affected_systems", flat=True)
+        if value
+    }
+    # Sorted by sequence, not alias_label text, so "HOST_2" sorts before
+    # "HOST_10" the way a person would expect.
+    affected_system_options = [
+        mapping.display_alias
+        for mapping in sorted(affected_system_mappings, key=lambda mapping: mapping.sequence)
+    ]
 
     # Analysis Results merged in here as Overview/Alerts tabs (see
     # build_overview_and_alerts_context) -- Queue is this view's own
     # pre-existing content, now living in a third tab, unchanged.
-    overview_context = build_overview_and_alerts_context(request)
+    overview_context = build_overview_and_alerts_context(request, organization)
     updated_at_candidates = [
         value
         for value in (latest_updated, overview_context.pop("overview_updated_at"))
@@ -152,6 +195,7 @@ def incident_list(request):
         "incidents": incidents,
         "active_nav": "incident_detail",
         "active_tab": _resolve_active_tab(request),
+        "organization": organization,
         "organization_name": organization.name if organization else "Demo Organization",
         "organization_plan": "Small Business Plan",
         "dashboard_updated_at": _format_dashboard_datetime(page_updated_at),
@@ -161,7 +205,7 @@ def incident_list(request):
             high_count=high_count,
             critical_count=critical_count,
         ),
-        "incident_cards": _build_incident_list_cards(filtered_incidents, current_user=request.user),
+        "incident_cards": _build_incident_list_cards(filtered_incidents, current_user=request.user, request=request),
         "my_investigation_cards": [card for card in my_investigation_cards if card["investigation_state"] != "closed"][:4],
         "my_investigation_counts": my_investigation_counts,
         "incident_summary": {
@@ -298,13 +342,17 @@ def _resolve_active_tab(request):
 
 def incident_detail(request, incident_id):
     incident = _get_incident_for_detail(incident_id)
-    context = _build_incident_detail_context(incident)
+    context = _build_incident_detail_context(incident, request=request)
     return render(request, "incidents/investigation_overview.html", context)
 
 
 def incident_evidence(request, incident_id):
     incident = _get_incident_for_detail(incident_id)
     evidence_items = list(incident.evidence_items.all())
+    warm_display_aliases(
+        get_request_alias_store(request, incident.organization),
+        _incident_alias_entries(incident, evidence_items),
+    )
 
     return render(
         request,
@@ -314,9 +362,10 @@ def incident_evidence(request, incident_id):
             "page_description": "Every evidence alert grouped into this incident.",
             "active_nav": "incident_detail",
             "organization_name": incident.organization.name,
+            "organization": incident.organization,
             "organization_plan": "Small Business Plan",
             "incident": incident,
-            "evidence_groups": _build_evidence_groups(evidence_items),
+            "evidence_groups": _build_evidence_groups(evidence_items, incident.organization, request),
             "detail_url": reverse("incidents:detail", args=[incident.id]),
         },
     )
@@ -360,6 +409,7 @@ def _get_incident_for_detail(incident_id):
 def _build_incident_detail_context(
     incident,
     *,
+    request=None,
     analysis_result=None,
     analysis_error=None,
     qa_error=None,
@@ -415,15 +465,25 @@ def _build_incident_detail_context(
         playbooks=playbooks,
         reports=reports,
     )
+    # Single seam where this page's structured-identifier aliases are minted;
+    # every alias_field tag and the alias helpers below are then cache reads.
+    warm_display_aliases(
+        get_request_alias_store(request, incident.organization),
+        _incident_alias_entries(incident, evidence_items),
+    )
+
     primary_system = _primary_affected_system(incident.affected_systems)
     primary_report = reports[0] if reports else None
     primary_playbook = _resolve_primary_playbook(playbooks)
-    critical_system_match = _build_critical_system_match(primary_system, incident.organization)
+    critical_system_match = _build_critical_system_match(primary_system, incident.organization, request)
     inspection_data = _build_incident_inspection_data(evidence_items, incident, primary_playbook)
     incident_owner = (
         incident.assigned_to.get_full_name() or incident.assigned_to.get_username()
         if incident.assigned_to_id
         else ""
+    )
+    affected_systems_display = _alias_affected_systems_display(
+        incident.affected_systems, incident.organization, request
     )
     incident_detail_url = reverse("incidents:detail", args=[incident.id])
 
@@ -435,6 +495,7 @@ def _build_incident_detail_context(
         ),
         "active_nav": "incident_detail",
         "organization_name": incident.organization.name,
+        "organization": incident.organization,
         "organization_plan": "Small Business Plan",
         "dashboard_updated_at": _format_dashboard_datetime(page_updated_at),
         "incident": incident,
@@ -445,6 +506,7 @@ def _build_incident_detail_context(
         "primary_system": primary_system,
         "critical_system_match": critical_system_match,
         "incident_owner": incident_owner,
+        "affected_systems_display": affected_systems_display,
         "detail_evidence": inspection_data["evidence"],
         "incident_timeline": inspection_data["timeline"],
         "incident_entities": inspection_data["entities"],
@@ -456,7 +518,7 @@ def _build_incident_detail_context(
             gap_findings=gap_findings,
             risk_assessments=risk_assessments,
         ),
-        "evidence_groups": _build_evidence_groups(evidence_items),
+        "evidence_groups": _build_evidence_groups(evidence_items, incident.organization, request),
         "gap_cards": _build_gap_cards(gap_findings),
         "risk_snapshot": _build_risk_snapshot(risk_assessments, incident),
         "recommended_actions": _build_recommended_actions(primary_playbook),
@@ -583,7 +645,7 @@ def _render_incident_action_result(request, incident, **context_overrides):
     template_name = (
         "incidents/investigation_overview.html" if target == "overview" else "incidents/detail.html"
     )
-    context = _build_incident_detail_context(incident, **context_overrides)
+    context = _build_incident_detail_context(incident, request=request, **context_overrides)
     return render(request, template_name, context)
 
 
@@ -1172,16 +1234,55 @@ def _build_ai_summary(*, incident, evidence_items, gap_findings, risk_assessment
     return summary
 
 
-def _build_evidence_groups(evidence_items):
+def _classify_evidence_detail(alert):
+    """Which single identifier (if any) an evidence card's "detail" line is
+    standing in for -- source_ip, affected_system, and account are three
+    different AliasMapping identifier_types, so the caller needs to know
+    which one fired before it can alias the result correctly. Same
+    priority order the collapsed string used to use."""
+    if alert.source_ip:
+        return "IP", alert.source_ip
+    if alert.affected_system:
+        return identifier_type_for_system(alert.affected_system), alert.affected_system
+    if alert.account:
+        return "USER", alert.account
+    return None, "Linked alert"
+
+
+def _incident_alias_entries(incident, evidence_items):
+    """Every structured identifier one incident page renders through
+    ``{% alias_field %}`` or the alias helpers, as ``(value, type)`` pairs.
+    Fed to ``warm_display_aliases`` at the single per-view seam so the
+    template tags and helpers downstream are cache reads."""
+    org_name = getattr(incident.organization, "name", "") or ""
+    if org_name.strip():
+        yield org_name.strip(), "ORG"
+    for system in _split_system_names(incident.affected_systems):
+        yield system, identifier_type_for_system(system)
+    if incident.assigned_to_id:
+        yield (
+            incident.assigned_to.get_full_name().strip()
+            or incident.assigned_to.get_username()
+        ), "PERSON"
+    for evidence in evidence_items:
+        identifier_type, value = _classify_evidence_detail(evidence.alert)
+        if identifier_type:
+            yield value, identifier_type
+
+
+def _build_evidence_groups(evidence_items, organization, request):
     grouped = defaultdict(list)
+    store = get_request_alias_store(request, organization)
 
     for evidence in evidence_items:
         alert = evidence.alert
         title = alert.event_type or "Related evidence"
+        identifier_type, raw_value = _classify_evidence_detail(alert)
+        detail = store.display_alias_for(raw_value, identifier_type) if identifier_type else raw_value
         grouped[title].append(
             {
                 "time_display": _format_compact_datetime(alert.timestamp or alert.created_at),
-                "detail": alert.source_ip or alert.affected_system or alert.account or "Linked alert",
+                "detail": detail,
             }
         )
 
@@ -1437,7 +1538,7 @@ def _confidence_label(value):
     return {"key": "low", "label": "LOW"}
 
 
-def _investigation_ui(incident, current_user=None):
+def _investigation_ui(incident, current_user=None, request=None):
     status_map = {
         IncidentGroup.Status.INVESTIGATING: ("in_progress", "In Progress", "analysis"),
         IncidentGroup.Status.CONTAINED: ("waiting", "Waiting", "clock"),
@@ -1472,13 +1573,16 @@ def _investigation_ui(incident, current_user=None):
     action_label, action_url = action_map[key]
     owner = "Unassigned"
     if incident.assigned_to_id:
-        owner = incident.assigned_to.get_full_name().strip() or incident.assigned_to.get_username()
+        raw_owner_name = incident.assigned_to.get_full_name().strip() or incident.assigned_to.get_username()
         if current_user and current_user.is_authenticated and incident.assigned_to_id == current_user.id:
             owner = "You"
+        else:
+            store = get_request_alias_store(request, incident.organization)
+            owner = store.display_alias_for(raw_owner_name, "PERSON")
     return {"key": key, "label": label, "icon": icon, "stage": stage, "stage_label": stage.title(), "stage_index": stage_index, "action_label": action_label, "action_url": action_url, "owner": owner}
 
 
-def _build_incident_list_cards(incidents, current_user=None):
+def _build_incident_list_cards(incidents, current_user=None, request=None):
     critical_system_lookup = {
         system.system_name.lower(): system for system in CriticalSystem.objects.all()
     }
@@ -1487,8 +1591,9 @@ def _build_incident_list_cards(incidents, current_user=None):
         evidence_count = incident.evidence_items.count()
         affected_system = _primary_affected_system(incident.affected_systems)
         critical_system = critical_system_lookup.get(affected_system.lower())
-        investigation = _investigation_ui(incident, current_user)
+        investigation = _investigation_ui(incident, current_user, request)
         cards.append({
+            "organization": incident.organization,
             "id": incident.id,
             "incident_identifier": _build_incident_identifier(incident),
             "title": incident.title,
@@ -1529,12 +1634,14 @@ def _primary_affected_system(raw_value):
     return systems[0] if systems else "Unknown system"
 
 
-def _build_critical_system_match(system_name, organization):
+def _build_critical_system_match(system_name, organization, request):
     match = resolve_affected_system(system_name, organization=organization)
     if not match:
         return {"matched": False, "system_name": system_name}
 
-    owner_summary = f"{match.owner_name} · {match.get_recovery_priority_display()} recovery"
+    store = get_request_alias_store(request, organization)
+    owner_label = store.display_alias_for(match.owner_name, "PERSON")
+    owner_summary = f"{owner_label} · {match.get_recovery_priority_display()} recovery"
     if match.backup_required:
         owner_summary += " · Backup required"
 
@@ -1559,6 +1666,23 @@ def _split_system_names(raw_value):
         values = split_values
 
     return [value.strip() for value in values if value.strip()]
+
+
+def _alias_affected_systems_display(raw_value, organization, request):
+    """detail.html shows the incident's full affected_systems field, not
+    just the first (primary_system) value -- so every system name in it
+    needs aliasing, not just the one already covered by primary_system,
+    or the rest would leak in the clear right next to it. Same
+    split/rejoin shape as _split_system_names, just with each piece run
+    through label_for."""
+    systems = _split_system_names(raw_value)
+    if not systems:
+        return raw_value
+    store = get_request_alias_store(request, organization)
+    return ", ".join(
+        store.display_alias_for(system, identifier_type_for_system(system))
+        for system in systems
+    )
 
 
 def _humanize_duration(start, end):
@@ -1818,7 +1942,7 @@ def incident_workflow(request, incident_id, stage="understand"):
                 # selections.
                 return redirect(f"{reverse('incidents:index')}?tab=queue")
             if action == "continue" and len(valid_results) == len(items):
-                context_now = _build_incident_detail_context(incident)
+                context_now = _build_incident_detail_context(incident, request=request)
                 if not context_now["recommended_actions"]["has_steps"]:
                     state = dict(incident.workflow_state or {})
                     state["response_error"] = _generate_workflow_response(incident)
@@ -1943,7 +2067,7 @@ def _render_workflow_stage(request, incident, stage, *, workflow_qa_error=None, 
     # (see _render_incident_action_result) forward their *_result/*_error
     # kwargs through when they land here instead of on detail.html --
     # empty for workflow.html's own POST handlers and incident_workflow_ask.
-    context = _build_incident_detail_context(incident, **detail_context_overrides)
+    context = _build_incident_detail_context(incident, request=request, **detail_context_overrides)
     stage_index = WORKFLOW_STAGES.index(stage) if stage in WORKFLOW_STAGES else 0
     action_items = context["recommended_actions"]["items"]
     required_complete = context["recommended_actions"]["all_done"]
