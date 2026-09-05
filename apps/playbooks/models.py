@@ -83,7 +83,7 @@ class ChecklistItemState(models.Model):
     be tracked independently. Items have no stable ID in the source text blob,
     so they're identified by item_key -- see
     apps.playbooks.services.text_parsing.checklist_item_key for why that's a
-    normalized-text key rather than a line index.
+    digest of the normalized line text rather than a line index.
     """
 
     incident = models.ForeignKey(

@@ -7,6 +7,7 @@ parsing Claude's numbered-list response into individual PlaybookStep
 rows) -- one parser, so both stay in the same format.
 """
 
+import hashlib
 import re
 
 
@@ -45,8 +46,18 @@ def normalize_sentence(text):
 def checklist_item_key(text):
     """Stable identity for a parsed checklist line, used by ChecklistItemState.
 
-    Keyed on normalized/lowercased text rather than list position so that
-    reordering the source SOPChecklist.checklist_items text doesn't silently
-    reassign one incident's completion state to a different item.
+    Derived from the normalized/lowercased text rather than list position so
+    that reordering the source SOPChecklist.checklist_items text doesn't
+    silently reassign one incident's completion state to a different item.
+
+    Returned as a SHA-256 digest of the full normalized text, not the text
+    itself. Two reasons: it's a fixed-width opaque token, so it drops the old
+    ``[:300]`` truncation (two lines identical in their first 300 chars would
+    otherwise collide onto one completion state); and it keeps the SOP line
+    text out of the ``ChecklistItemState`` row, the hidden form field it's
+    rendered into, and anywhere that field might later be logged or stored.
+    (The line text is still shown in the clear as the checkbox's own label --
+    this is not trying to hide it there.)
     """
-    return normalize_sentence(text).strip().lower()[:300]
+    normalized = normalize_sentence(text).strip().lower()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
