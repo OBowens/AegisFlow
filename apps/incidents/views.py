@@ -1583,14 +1583,23 @@ def _investigation_ui(incident, current_user=None, request=None):
 
 
 def _build_incident_list_cards(incidents, current_user=None, request=None):
+    incidents = list(incidents)
+    # Match each incident's affected system only against its *own*
+    # organization's critical systems. A global name-keyed lookup let one
+    # org's incident pick up another org's critical-system criticality badge
+    # whenever the two happened to name a system the same way.
+    organization_ids = {incident.organization_id for incident in incidents}
     critical_system_lookup = {
-        system.system_name.lower(): system for system in CriticalSystem.objects.all()
+        (system.organization_id, system.system_name.lower()): system
+        for system in CriticalSystem.objects.filter(organization_id__in=organization_ids)
     }
     cards = []
     for incident in incidents:
         evidence_count = incident.evidence_items.count()
         affected_system = _primary_affected_system(incident.affected_systems)
-        critical_system = critical_system_lookup.get(affected_system.lower())
+        critical_system = critical_system_lookup.get(
+            (incident.organization_id, affected_system.lower())
+        )
         investigation = _investigation_ui(incident, current_user, request)
         cards.append({
             "organization": incident.organization,

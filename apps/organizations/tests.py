@@ -3,7 +3,7 @@ from django.test import Client
 from config.testcase import AuthedTestCase
 from django.urls import reverse
 
-from .models import Organization
+from .models import CriticalSystem, Organization
 
 
 class OrganizationProfileViewTestCase(AuthedTestCase):
@@ -133,3 +133,45 @@ class ProfileExperienceViewTestCase(AuthedTestCase):
         }, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Incident response and monitoring")
+
+
+class CriticalSystemsPageScopingTestCase(AuthedTestCase):
+    """The Critical Systems settings page must list only the current
+    organization's systems -- get_current_organization() resolves to the
+    oldest Organization row, so a second org's systems must never leak in."""
+
+    def setUp(self):
+        self.current_org = Organization.objects.create(
+            name="Coral Bay Credit Union", organization_type="Business"
+        )
+        self.other_org = Organization.objects.create(
+            name="Someone Else Ltd", organization_type="Business"
+        )
+        CriticalSystem.objects.create(
+            organization=self.current_org,
+            system_name="OURS-PAYROLL-01",
+            system_type="server",
+            criticality="high",
+            owner_name="Our Owner",
+            recovery_priority="tier_1",
+        )
+        CriticalSystem.objects.create(
+            organization=self.other_org,
+            system_name="THEIRS-SECRET-01",
+            system_type="server",
+            criticality="high",
+            owner_name="Their Owner",
+            recovery_priority="tier_1",
+        )
+
+    def test_index_lists_only_the_current_organizations_critical_systems(self):
+        response = self.client.get(reverse("organizations:index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "OURS-PAYROLL-01")
+        self.assertContains(response, "Our Owner")
+        self.assertNotContains(response, "THEIRS-SECRET-01")
+        self.assertNotContains(response, "Their Owner")
+        self.assertEqual(list(response.context["critical_systems"]), list(
+            CriticalSystem.objects.filter(organization=self.current_org)
+        ))

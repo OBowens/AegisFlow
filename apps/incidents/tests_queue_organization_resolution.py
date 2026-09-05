@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.incidents.models import IncidentGroup
-from apps.organizations.models import Organization
+from apps.organizations.models import CriticalSystem, Organization
 from apps.resilience.models import ReadinessScoreSnapshot
 
 
@@ -113,3 +113,57 @@ class QueueOrganizationResolutionTestCase(AuthedTestCase):
         response = self.client.get(self.overview_url)
 
         self.assertEqual(response.context["organization_name"], "AegisFlow AI Demo Organization")
+
+
+class QueueCardCriticalSystemScopingTestCase(AuthedTestCase):
+    """An incident card's critical-system criticality must be matched
+    against that incident's *own* organization. A global name-keyed lookup
+    let one org's incident inherit another org's critical-system badge when
+    both happened to name a system the same way."""
+
+    def setUp(self):
+        self.org = Organization.objects.create(
+            name="AegisFlow AI Demo Organization", organization_type="Demo"
+        )
+        self.other_org = Organization.objects.create(
+            name="Someone Else Ltd", organization_type="Business"
+        )
+        CriticalSystem.objects.create(
+            organization=self.other_org,
+            system_name="SHARED-NAME-01",
+            system_type="server",
+            criticality="critical",
+            owner_name="Their Owner",
+            recovery_priority="tier_1",
+        )
+        self.incident = IncidentGroup.objects.create(
+            organization=self.org,
+            title="Activity on SHARED-NAME-01",
+            incident_type="log_activity",
+            severity=IncidentGroup.Severity.HIGH,
+            affected_systems="SHARED-NAME-01",
+        )
+
+    def _card(self, response):
+        return next(
+            card
+            for card in response.context["incident_cards"]
+            if card["id"] == self.incident.id
+        )
+
+    def test_incident_does_not_inherit_another_orgs_critical_system_badge(self):
+        card = self._card(self.client.get(f"{reverse('incidents:index')}?tab=queue"))
+        self.assertIsNone(card["critical_system_criticality"])
+        self.assertIsNone(card["critical_system_criticality_label"])
+
+    def test_same_org_critical_system_still_matches(self):
+        CriticalSystem.objects.create(
+            organization=self.org,
+            system_name="SHARED-NAME-01",
+            system_type="server",
+            criticality="high",
+            owner_name="Our Owner",
+            recovery_priority="tier_1",
+        )
+        card = self._card(self.client.get(f"{reverse('incidents:index')}?tab=queue"))
+        self.assertEqual(card["critical_system_criticality"], "high")

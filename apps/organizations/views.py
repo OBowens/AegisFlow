@@ -32,7 +32,14 @@ def index(request):
     else:
         form = CriticalSystemForm()
 
-    critical_systems = CriticalSystem.objects.select_related("organization").order_by("-updated_at")
+    # Scope to the current organization -- the settings page must not list
+    # another organization's critical systems, owners, or recovery tiers.
+    organization = get_current_organization()
+    critical_systems = (
+        CriticalSystem.objects.filter(organization=organization)
+        .select_related("organization")
+        .order_by("-updated_at")
+    )
 
     return render(
         request,
