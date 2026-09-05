@@ -307,16 +307,17 @@ class PersistentAliasStore:
         return {m.ai_token: m.real_value for m in self._touched.values()}
 
     def _get_or_create(self, label: str, norm: str, real: str):
-        from django.db import IntegrityError, transaction
+        import zlib
+
+        from django.db import IntegrityError, connection, transaction
         from django.utils import timezone
 
         from apps.ai_core.models import AliasMapping
 
-        # A handful of retries covers a lost race on either unique
-        # constraint (two processes both creating the same new value, or
-        # two processes both claiming the same next sequence number for
-        # two *different* new values). Single-tenant, low-traffic today --
-        # this is a bounded retry, not a queueing system.
+        # A handful of retries covers a lost race on the normalized_value
+        # unique constraint (two processes both creating the same new
+        # value). Single-tenant, low-traffic today -- this is a bounded
+        # retry, not a queueing system.
         for _attempt in range(5):
             existing = AliasMapping.objects.filter(
                 organization=self.organization,
@@ -331,15 +332,59 @@ class PersistentAliasStore:
 
             try:
                 with transaction.atomic():
-                    # Lock this org+type's existing rows so concurrent
-                    # inserts serialize on computing the next sequence
-                    # instead of both computing the same one.
-                    last = (
-                        AliasMapping.objects.select_for_update()
-                        .filter(organization=self.organization, identifier_type=label)
-                        .order_by("-sequence")
-                        .first()
-                    )
+                    if connection.vendor == "postgresql":
+                        # Serialize every creator for this (org, type) pair
+                        # via an advisory lock, keyed on ids rather than on
+                        # any row's current state. A `SELECT ... FOR UPDATE
+                        # ... ORDER BY sequence DESC LIMIT 1` looked
+                        # equivalent but is not: under READ COMMITTED, a
+                        # transaction blocked waiting on the *previously*
+                        # last row does not re-run the ORDER BY/LIMIT
+                        # search after unblocking -- it only re-validates
+                        # that same row instance, which still matches (it
+                        # was superseded by a new INSERT, not UPDATEd). So
+                        # several waiters queued on one stale "last" row
+                        # all resurfaced it and all computed the same
+                        # next_seq, burning through the retry budget under
+                        # contention (verified: ~1-in-5 runs at 8-way
+                        # concurrency exhausted 5 retries and raised
+                        # below). An advisory lock has no such staleness
+                        # window since it doesn't depend on row existence.
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "SELECT pg_advisory_xact_lock(%s, %s)",
+                                [
+                                    self.organization.pk,
+                                    zlib.crc32(label.encode()) & 0x7FFFFFFF,
+                                ],
+                            )
+                        existing = AliasMapping.objects.filter(
+                            organization=self.organization,
+                            identifier_type=label,
+                            normalized_value=norm,
+                        ).first()
+                        if existing is not None:
+                            AliasMapping.objects.filter(pk=existing.pk).update(
+                                last_seen_at=timezone.now()
+                            )
+                            return existing
+                        last = (
+                            AliasMapping.objects.filter(
+                                organization=self.organization, identifier_type=label
+                            )
+                            .order_by("-sequence")
+                            .first()
+                        )
+                    else:
+                        # No advisory locks outside Postgres (sqlite dev
+                        # fallback only -- see config/settings.py); its
+                        # single-writer file lock already serializes this.
+                        last = (
+                            AliasMapping.objects.select_for_update()
+                            .filter(organization=self.organization, identifier_type=label)
+                            .order_by("-sequence")
+                            .first()
+                        )
                     next_seq = (last.sequence + 1) if last else 1
                     return AliasMapping.objects.create(
                         organization=self.organization,
