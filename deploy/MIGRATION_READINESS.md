@@ -52,6 +52,17 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 >    Interim workaround used on 2026-09-06: run with the DB vars blanked (SQLite
 >    fallback) and `DJANGO_SECURE_SSL_REDIRECT=False DJANGO_SESSION_COOKIE_SECURE=False
 >    DJANGO_CSRF_COOKIE_SECURE=False` exported inline for the one command.
+>
+> 3. **`DJANGO_DEBUG` was still `True` in the live `.env` — fixed 2026-09-06.**
+>    Despite the checklist below (§ "Non-secret configuration") calling for
+>    `False`, the deployed `.env` shipped with `DJANGO_DEBUG=True`, so production
+>    error pages (incl. Django's CSRF-403 page) were exposing a full settings /
+>    request dump. Now set to `False`; gunicorn reloaded via `kill -HUP` (the
+>    `aegisflow` user has no sudo). Verified: generic 404/403/500 pages, a real
+>    login succeeds end-to-end, `logs/django-errors.log` online and clean. The
+>    other `DJANGO_*` hardening vars (ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS,
+>    SECURE_PROXY_SSL_HEADER, SESSION/CSRF_COOKIE_SECURE, SSL_REDIRECT) were
+>    already correct and loaded — no change needed.
 
 ---
 
@@ -164,7 +175,7 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 ## 6. Background services
 
 - **App WSGI server:** gunicorn (one process group, `--workers 3`). In this dev tree it is normally run via `manage.py runserver`; the drafted production unit is `deploy/aegisflow.service`.
-- **Endpoint-triage job:** `manage.py triage_endpoint_events` — designed to run on a schedule (host cron, e.g. `*/10 * * * *`) to correlate recent endpoint events and AI-triage flagged clusters. **Not currently scheduled** (`cron` is not even installed on this box; no systemd timer). If endpoint analysis is wanted on the VPS, add a cron entry or systemd timer for it.
+- **Endpoint-triage job:** `manage.py triage_endpoint_events` — correlates recent endpoint events and AI-triages the flagged clusters. **Scheduled 2026-09-06** via the `aegisflow` *user* crontab (`crontab -l`), `*/10 * * * *`, running `deploy/cron-triage-endpoint-events.sh` (flock-guarded wrapper; output → `logs/triage-endpoint-events.log`). Host cron, not a systemd timer — deliberate (see the script header). `cron` **is** installed and enabled on this box (the earlier "not installed" note is stale). To reinstall the entry: `crontab deploy/aegisflow.crontab` (or add the one line by hand).
 - **No Celery / RQ / channels / websockets / message broker.** No `redis`, no `memcached`. Rate limiting is DB-backed against the `AIRun` table specifically to avoid needing a shared cache.
 - **PostgreSQL** — local, `postgresql@16-main.service`.
 
@@ -236,7 +247,7 @@ Other GCP-adjacent findings:
 | `nginx` (`nginx-common`) | reverse proxy / TLS termination / static files |
 | `certbot`, `python3-certbot-nginx` | Let's Encrypt TLS + auto-renew |
 | `git` | to carry the repo with history |
-| `cron` (or a systemd timer) | **only if** you want the `triage_endpoint_events` scheduled job; not installed on the current box |
+| `cron` | installed + enabled; runs the `triage_endpoint_events` job every 10 min via the `aegisflow` user crontab (`deploy/aegisflow.crontab`) |
 
 No Redis, Memcached, RabbitMQ, Node, or build toolchain for assets (static is pre-built, no bundler).
 

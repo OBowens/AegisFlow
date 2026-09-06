@@ -1,0 +1,18 @@
+# AegisFlow AI — user crontab for the `aegisflow` account.
+#
+# Install:   crontab deploy/aegisflow.crontab
+# Inspect:   crontab -l
+#
+# This is the committed source of truth for the scheduled job. The app is
+# served straight from this git checkout, and the wrapper script it calls
+# lives in the same checkout, so "installed" == "committed" — nothing to
+# drift (unlike deploy/aegisflow.service). If you edit this file, re-run
+# `crontab deploy/aegisflow.crontab`.
+#
+# ── Windows Endpoint Analyzer (feature Part 3) ────────────────────────────
+# Correlate recent Windows endpoint events and AI-triage the flagged
+# clusters, every 10 minutes. Host cron chosen over a systemd timer
+# deliberately (see deploy/cron-triage-endpoint-events.sh). All output goes
+# to logs/triage-endpoint-events.log; the wrapper flock-guards overlap.
+MAILTO=""
+*/10 * * * * /home/aegisflow/app/deploy/cron-triage-endpoint-events.sh
