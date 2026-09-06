@@ -16,8 +16,10 @@
   see ``apps.ai_core.services.alias_engine.sanitize_prose_for_display``.
 
 Both use the same org-scoped ``AliasMapping`` the AI-boundary sanitizer
-uses, so a value reads identically everywhere. Neither has a click-to-reveal
-affordance yet -- that's Part 6.
+uses, so a value reads identically everywhere, and both render the same
+markup (``apps.ai_core.services.alias_engine.render_alias_span``) carrying a
+``data-alias-pk`` for the Part 6 click-to-reveal control
+(``static/js/alias-reveal.js``, wired into the base layouts).
 
 ``organization`` is always passed explicitly by the caller (the record's own
 ``.organization``, or whatever the view resolved for the page); these tags
@@ -27,12 +29,12 @@ never guess one.
 from __future__ import annotations
 
 from django import template
-from django.utils.html import format_html
 
 from apps.ai_core.services.alias_engine import (
     get_request_alias_store,
     identifier_type_for_system,
     is_non_identity_sentinel,
+    render_alias_span,
     sanitize_prose_for_display,
 )
 
@@ -52,10 +54,8 @@ def alias_field(context, value, identifier_type, organization):
     if identifier_type == "HOST":
         identifier_type = identifier_type_for_system(text)
     store = get_request_alias_store(context.get("request"), organization)
-    return format_html(
-        '<span class="af-alias">{}</span>',
-        store.display_alias_for(text, identifier_type),
-    )
+    mapping = store.mapping_for(text, identifier_type)
+    return render_alias_span(mapping.pk, mapping.display_alias)
 
 
 @register.simple_tag(takes_context=True)

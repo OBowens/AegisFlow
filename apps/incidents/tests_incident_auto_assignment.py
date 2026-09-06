@@ -22,6 +22,7 @@ from config.testcase import AuthedTestCase
 from django.urls import reverse
 
 from apps.ai_core.models import AliasMapping
+from apps.ai_core.services.alias_engine import render_alias_span
 from apps.organizations.models import Organization
 
 from .models import IncidentGroup
@@ -150,17 +151,18 @@ class AssignmentRenderingTestCase(AuthedTestCase):
         response = self.client.get(reverse("incidents:detail", args=[incident.id]))
         html = response.content.decode()
 
-        owner_alias = AliasMapping.objects.get(
+        owner = AliasMapping.objects.get(
             organization=self.organization,
             identifier_type="PERSON",
             real_value="Jane Ortiz",
-        ).display_alias
+        )
+        owner_span = render_alias_span(owner.pk, owner.display_alias)
         self.assertIn(
-            f'<small>Assigned to</small><strong><span class="af-alias">{owner_alias}</span></strong>',
+            f"<small>Assigned to</small><strong>{owner_span}</strong>",
             html,
         )
         self.assertIn(
-            f'<dt>Assigned to</dt><dd><span class="af-alias">{owner_alias}</span></dd>',
+            f"<dt>Assigned to</dt><dd>{owner_span}</dd>",
             html,
         )
         self.assertNotIn("Jane Ortiz", html)
@@ -190,13 +192,15 @@ class AssignmentRenderingTestCase(AuthedTestCase):
         response = self.client.get(reverse("incidents:workflow", args=[incident.id, "understand"]))
         html = response.content.decode()
 
-        owner_alias = AliasMapping.objects.get(
+        owner = AliasMapping.objects.get(
             organization=self.organization,
             identifier_type="PERSON",
             real_value="Jane Ortiz",
-        ).display_alias
+        )
         self.assertIn('<p class="af-assignment-pill is-other">', html)
-        self.assertIn(f'Assigned to <span class="af-alias">{owner_alias}</span>', html)
+        self.assertIn(
+            f"Assigned to {render_alias_span(owner.pk, owner.display_alias)}", html
+        )
         self.assertNotIn("Jane Ortiz", html)
 
     def test_workflow_flowbar_pill_says_unassigned_when_nobody_owns_it(self):

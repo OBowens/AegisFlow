@@ -46,7 +46,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from django.utils.html import conditional_escape
+from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 
 logger = logging.getLogger(__name__)
@@ -619,6 +619,30 @@ def identifier_type_for_system(value) -> str:
     return "IP"
 
 
+def render_alias_span(pk, display_alias):
+    """The one piece of on-screen alias markup, shared by ``{% alias_field %}``
+    (a structured column) and ``{% alias_prose %}`` (a free-text block).
+
+    ``[HOST_003]`` stays the visible text; ``data-alias-pk`` is what the
+    click-to-reveal control (Part 6 -- ``static/js/alias-reveal.js``) POSTs to
+    ``ai_core:reveal_alias``. ``data-alias-label`` is the value the toggle
+    restores to when a revealed value is hidden again (the fetched real value
+    is discarded on hide, never cached in the DOM)."""
+    return format_html(
+        '<span class="af-alias" data-alias-pk="{pk}" data-alias-label="{label}">'
+        '<span class="af-alias__value">{label}</span>'
+        '<button type="button" class="af-alias__toggle" '
+        'aria-label="Reveal the real value behind {label}">'
+        '<svg class="af-alias__icon" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/>'
+        '<circle cx="12" cy="12" r="3"/></svg></button></span>',
+        pk=pk,
+        label=display_alias,
+    )
+
+
 def get_request_alias_store(request, organization) -> "PersistentAliasStore":
     """One preloaded ``PersistentAliasStore`` per (request, organization), so
     every display-time lookup on one page render shares a single get-or-create
@@ -756,20 +780,25 @@ def get_request_prose_identifiers(request, organization) -> dict:
     return known
 
 
-def _prose_to_safe_html(text: str, alias_labels: set):
+def _prose_to_safe_html(text: str, produced: dict):
     """Escape every non-alias span of ``text`` and wrap each display alias we
-    actually produced in a plain ``af-alias`` span (no reveal control),
-    rendering newlines as ``<br>`` to match the templates' old
-    ``|linebreaksbr``."""
+    actually produced in the shared ``af-alias`` reveal span (see
+    :func:`render_alias_span`), rendering newlines as ``<br>`` to match the
+    templates' old ``|linebreaksbr``.
+
+    ``produced`` maps each display alias we minted for this block
+    (``"[HOST_003]"``) to its ``AliasMapping`` pk, so the click-to-reveal
+    control has a target. A ``[HOST_5]``-shaped literal that is not in
+    ``produced`` is left as ordinary escaped text."""
     pieces: list[str] = []
     last = 0
     for match in _DISPLAY_ALIAS_SCAN_RE.finditer(text):
         label = match.group(0)
-        if label not in alias_labels:
+        if label not in produced:
             # A literal "[HOST_5]" we did not produce -- ordinary text.
             continue
         pieces.append(str(conditional_escape(text[last:match.start()])))
-        pieces.append('<span class="af-alias">' + label + "</span>")
+        pieces.append(str(render_alias_span(produced[label], label)))
         last = match.end()
     pieces.append(str(conditional_escape(text[last:])))
     return mark_safe("".join(pieces).replace("\n", "<br>"))
@@ -804,7 +833,10 @@ def sanitize_prose_for_display(text, organization, *, request=None):
             return mapping.display_alias if mapping is not None else match.group(0)
 
         aliased = _TOKEN_RE.sub(_token_to_display, tokenized)
-        produced = {mapping.display_alias for mapping in token_to_mapping.values()}
+        produced = {
+            mapping.display_alias: mapping.pk
+            for mapping in token_to_mapping.values()
+        }
         return _prose_to_safe_html(aliased, produced)
     except Exception as exc:  # fail closed -- see this section's header
         logger.warning(

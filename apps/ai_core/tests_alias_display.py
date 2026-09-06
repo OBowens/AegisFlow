@@ -16,6 +16,7 @@ from apps.ai_core.models import AliasMapping
 from apps.ai_core.services.alias_engine import (
     get_request_alias_store,
     is_non_identity_sentinel,
+    render_alias_span,
     warm_display_aliases,
 )
 from apps.organizations.models import Organization
@@ -68,6 +69,30 @@ class AliasFieldTagTests(TestCase):
         self.assertEqual(_render("", "HOST", self.org).strip(), "")
         self.assertEqual(_render("WEB-01", "HOST", None).strip(), "")
         self.assertEqual(AliasMapping.objects.count(), 0)
+
+    def test_rendered_span_carries_the_real_pk_and_a_reveal_toggle(self):
+        rendered = _render("PAYROLL-DB-01", "HOST", self.org)
+        mapping = AliasMapping.objects.get(
+            organization=self.org, identifier_type="HOST", real_value="PAYROLL-DB-01"
+        )
+
+        # Visible text is still the alias; the real value is nowhere in the markup.
+        self.assertIn('<span class="af-alias__value">[HOST_001]</span>', rendered)
+        self.assertNotIn("PAYROLL-DB-01", rendered)
+        # data-alias-pk points at the actual AliasMapping row the reveal
+        # endpoint looks up, and there is a toggle to click.
+        self.assertIn(f'data-alias-pk="{mapping.pk}"', rendered)
+        self.assertIn('data-alias-label="[HOST_001]"', rendered)
+        self.assertIn('class="af-alias__toggle"', rendered)
+
+    def test_alias_field_and_render_alias_span_produce_identical_markup(self):
+        rendered = _render("PAYROLL-DB-01", "HOST", self.org).strip()
+        mapping = AliasMapping.objects.get(
+            organization=self.org, real_value="PAYROLL-DB-01"
+        )
+        self.assertEqual(
+            rendered, render_alias_span(mapping.pk, mapping.display_alias)
+        )
 
     def test_warm_seam_mints_and_the_tag_then_reads_without_new_rows(self):
         request = RequestFactory().get("/")

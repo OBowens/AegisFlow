@@ -19,6 +19,7 @@ from config.testcase import AuthedTestCase
 from django.urls import reverse
 
 from apps.ai_core.models import AliasMapping
+from apps.ai_core.services.alias_engine import render_alias_span
 from apps.incidents.models import AnalystQuestion, IncidentComparison, IncidentGroup
 from apps.organizations.models import Organization
 
@@ -107,12 +108,13 @@ class IncidentActionReturnTargetTestCase(AuthedTestCase):
         # AI prose renders through {% alias_prose %}: the affected system
         # is aliased inside the sentence, the rest is intact. (DB01 still
         # appears in the page <title> -- plain-text surfaces are a later part.)
-        host_alias = AliasMapping.objects.get(
+        host = AliasMapping.objects.get(
             organization=self.organization, identifier_type="HOST", real_value="DB01"
-        ).display_alias
+        )
         self.assertContains(
-            response, f'In plain terms: someone tried many passwords on '
-            f'<span class="af-alias">{host_alias}</span>.'
+            response,
+            f"In plain terms: someone tried many passwords on "
+            f"{render_alias_span(host.pk, host.display_alias)}.",
         )
 
     def test_compare_with_return_to_workflow_renders_that_stage_not_detail(self):

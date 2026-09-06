@@ -20,6 +20,7 @@ from django.urls import reverse
 
 from apps.audit.models import AIRun
 from apps.ai_core.models import AliasMapping
+from apps.ai_core.services.alias_engine import render_alias_span
 from apps.incidents.models import IncidentGroup, WorkflowStepGuidance, WorkflowStepQuestion
 from apps.organizations.models import Organization
 
@@ -82,10 +83,14 @@ class WorkflowStepGuidanceGenerationTestCase(AuthedTestCase):
         mock_next_step.assert_called_once_with(self.incident, "understand")
         # AI guidance renders through {% alias_prose %} -- the system is
         # aliased inside the sentence.
-        host_alias = AliasMapping.objects.get(
+        host = AliasMapping.objects.get(
             organization=self.organization, identifier_type="HOST", real_value="DB01"
-        ).display_alias
-        self.assertContains(response, f'Check whether <span class="af-alias">{host_alias}</span> is still reachable.')
+        )
+        self.assertContains(
+            response,
+            f"Check whether {render_alias_span(host.pk, host.display_alias)} "
+            f"is still reachable.",
+        )
 
         self.assertEqual(WorkflowStepGuidance.objects.count(), 1)
         guidance = WorkflowStepGuidance.objects.get()
@@ -102,10 +107,14 @@ class WorkflowStepGuidanceGenerationTestCase(AuthedTestCase):
         first_response, _ = self._generate(
             self.understand_url, "Check whether DB01 is still reachable."
         )
-        host_alias = AliasMapping.objects.get(
+        host = AliasMapping.objects.get(
             organization=self.organization, identifier_type="HOST", real_value="DB01"
-        ).display_alias
-        self.assertContains(first_response, f'Check whether <span class="af-alias">{host_alias}</span> is still reachable.')
+        )
+        expected = (
+            f"Check whether {render_alias_span(host.pk, host.display_alias)} "
+            f"is still reachable."
+        )
+        self.assertContains(first_response, expected)
         self.assertEqual(WorkflowStepGuidance.objects.count(), 1)
 
         # A second, third, ... plain GET must NOT call the AI again -- the
@@ -120,8 +129,8 @@ class WorkflowStepGuidanceGenerationTestCase(AuthedTestCase):
         mock_next_step_on_reload.assert_not_called()
         self.assertEqual(second_response.status_code, 200)
         self.assertEqual(third_response.status_code, 200)
-        self.assertContains(second_response, f'Check whether <span class="af-alias">{host_alias}</span> is still reachable.')
-        self.assertContains(third_response, f'Check whether <span class="af-alias">{host_alias}</span> is still reachable.')
+        self.assertContains(second_response, expected)
+        self.assertContains(third_response, expected)
 
         # Still exactly one saved row and one AIRun -- survives multiple
         # reloads without duplicating anything.
@@ -245,13 +254,13 @@ class WorkflowStepAskViewTestCase(AuthedTestCase):
         self.assertTemplateNotUsed(response, "incidents/detail.html")
         self.assertContains(response, "Verify the incident")
         self.assertContains(response, "How do I check reachability?")
-        host_alias = AliasMapping.objects.get(
+        host = AliasMapping.objects.get(
             organization=self.organization, identifier_type="HOST", real_value="DB01"
-        ).display_alias
+        )
         self.assertContains(
             response,
-            f'Ping <span class="af-alias">{host_alias}</span> or check your '
-            f'monitoring tool for its current status.',
+            f"Ping {render_alias_span(host.pk, host.display_alias)} or check your "
+            f"monitoring tool for its current status.",
         )
 
         mock_qa.assert_called_once_with(

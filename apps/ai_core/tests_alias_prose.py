@@ -102,12 +102,17 @@ class ProseSanitizerTests(TestCase):
         rendered = str(
             self.sanitize("203.0.113.9 opened the door; later 203.0.113.9 came back.")
         )
-        self.assertEqual(rendered.count("[IP_001]"), 2)
         self.assertNotIn("203.0.113.9", rendered)
         self.assertEqual(
             AliasMapping.objects.filter(organization=self.org, identifier_type="IP").count(),
             1,
         )
+        alias = AliasMapping.objects.get(organization=self.org, identifier_type="IP")
+        # Both occurrences render as the same reveal span pointing at the one row.
+        self.assertEqual(
+            rendered.count('<span class="af-alias__value">[IP_001]</span>'), 2
+        )
+        self.assertEqual(rendered.count(f'data-alias-pk="{alias.pk}"'), 2)
 
     def test_non_identifier_text_is_left_untouched(self):
         text = (
@@ -116,6 +121,22 @@ class ProseSanitizerTests(TestCase):
             "if the pattern repeats over 24/7 monitoring."
         )
         self.assertEqual(str(self.sanitize(text)), text)
+
+    def test_each_prose_alias_is_a_reveal_span_pointing_at_its_row(self):
+        rendered = str(self.sanitize("Traffic from 203.0.113.9 hit PAYROLL-DB-01."))
+        ip = AliasMapping.objects.get(organization=self.org, identifier_type="IP")
+        host = AliasMapping.objects.get(
+            organization=self.org, identifier_type="HOST", real_value="PAYROLL-DB-01"
+        )
+        for mapping in (ip, host):
+            self.assertIn(f'data-alias-pk="{mapping.pk}"', rendered)
+            self.assertIn(
+                f'<span class="af-alias__value">{mapping.display_alias}</span>',
+                rendered,
+            )
+        self.assertIn('class="af-alias__toggle"', rendered)
+        self.assertNotIn("203.0.113.9", rendered)
+        self.assertNotIn("PAYROLL-DB-01", rendered)
 
     def test_augmented_dictionary_catches_a_lowercase_host_the_regex_misses(self):
         # The bare-host regex is uppercase-led only; "oldbox" is caught only

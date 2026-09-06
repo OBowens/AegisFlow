@@ -8142,3 +8142,13 @@ html[data-theme="light"] .af-protect-page :where(.af-protect-hero,.af-protect-in
 @media(max-width:1050px){.af-protect-top{grid-template-columns:1fr}.af-protect-install ol{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.af-protect-install li:not(:last-child)::after{display:none}}@media(max-width:760px){.af-protect-hero{grid-template-columns:1fr;padding:20px}.af-protect-visual{min-height:210px}.af-protect-platforms,.af-protect-summary,.af-protect-install ol{grid-template-columns:1fr}.af-protect-copy{padding:0}.af-protect-head h1{font-size:29px}}
 
 .af-alias{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:nowrap}
+/* .af-alias__toggle / is-revealed / is-loading / is-error are intentionally
+   duplicated in templates/layouts/base.html's inline <style> -- that layout
+   does not load dashboard.css. Keep the two copies in sync. */
+.af-alias.is-revealed{white-space:normal;word-break:break-word}
+.af-alias__toggle{margin-left:.25em;padding:0;border:0;background:transparent;color:currentColor;cursor:pointer;opacity:.5;line-height:0;vertical-align:middle}
+.af-alias__toggle:hover,.af-alias__toggle:focus-visible{opacity:1}
+.af-alias__icon{width:1em;height:1em;display:block}
+.af-alias.is-loading .af-alias__toggle{opacity:.3;cursor:progress}
+.af-alias.is-error .af-alias__toggle{color:var(--danger,#b42318);opacity:1}
+.af-alias.is-revealed .af-alias__toggle{opacity:1;color:var(--accent-primary,#163d8f)}

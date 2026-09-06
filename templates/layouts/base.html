@@ -296,7 +296,60 @@
             color: var(--muted);
             background: #fbfcfe;
         }
+
+        /* .af-alias__toggle / is-revealed / is-loading / is-error are
+           intentionally duplicated in static/css/dashboard.css (loaded by
+           layouts/app_base.html). This layout does not load dashboard.css,
+           so keep the two copies in sync. */
+        .af-alias {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        .af-alias.is-revealed {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .af-alias__toggle {
+            margin-left: 0.25em;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: currentColor;
+            cursor: pointer;
+            opacity: 0.5;
+            line-height: 0;
+            vertical-align: middle;
+        }
+
+        .af-alias__toggle:hover,
+        .af-alias__toggle:focus-visible {
+            opacity: 1;
+        }
+
+        .af-alias__icon {
+            width: 1em;
+            height: 1em;
+            display: block;
+        }
+
+        .af-alias.is-loading .af-alias__toggle {
+            opacity: 0.3;
+            cursor: progress;
+        }
+
+        .af-alias.is-error .af-alias__toggle {
+            color: var(--error);
+            opacity: 1;
+        }
+
+        .af-alias.is-revealed .af-alias__toggle {
+            opacity: 1;
+            color: var(--primary);
+        }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <div class="shell">
@@ -325,5 +378,7 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+    {% include "partials/alias_reveal.html" %}
+    {% block page_scripts %}{% endblock %}
 </body>
 </html>

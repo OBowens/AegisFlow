@@ -1,0 +1,11 @@
+{% load static %}
+{% comment %}
+Sensitive-identifier reveal wiring (Part 6). Included once by every base
+layout so {% alias_field %} / {% alias_prose %} reveal toggles work uniformly
+on any page that renders them. The form is never submitted -- it exists only
+to carry a CSRF token for alias-reveal.js's fetch() POST to
+ai_core:reveal_alias. The pk in data-reveal-url is a placeholder the script
+substitutes per alias.
+{% endcomment %}
+<form class="af-alias-reveal" data-reveal-url="{% url 'ai_core:reveal_alias' 0 %}" hidden>{% csrf_token %}</form>
+<script src="{% static 'js/alias-reveal.js' %}" defer></script>
