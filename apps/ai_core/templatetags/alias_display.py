@@ -1,23 +1,27 @@
-"""Display-time alias substitution for structured identifier fields.
+"""Display-time alias substitution.
 
-``{% load alias_display %}`` then ``{% alias_field value "HOST" organization %}``
-renders ``value``'s stable ``AliasMapping`` label (e.g. ``[HOST_003]``) in
-place of the real value. The mapping is the same org-scoped one the
-AI-boundary sanitizer uses, so a value reads identically in both places.
+``{% load alias_display %}`` then:
 
-Minting happens in the view: each list/detail view pre-warms its whole page's
-identifier set in one call (``apps.ai_core.services.alias_engine.warm_display_aliases``),
-so this tag is a cache read. It still get-or-creates on a miss for
-correctness.
+* ``{% alias_field value "HOST" organization %}`` -- a single *structured*
+  identifier column (Part 4). Renders ``value``'s stable ``AliasMapping``
+  label (e.g. ``[HOST_003]``) in place of the real value. Minting happens
+  in the view via ``warm_display_aliases``; this tag is a cache read (it
+  still get-or-creates on a miss for correctness).
 
-Only structured fields (a known column -> a known identifier type) go through
-here. Free-text/prose sanitization and the click-to-reveal control are a
-later part of the sensitive-identifier overhaul and are not wired up yet --
-a rendered alias here has no reveal affordance.
+* ``{% alias_prose value organization %}`` -- a block of *free text* (Part
+  5): an AI analysis/answer/report, a composed incident title or summary,
+  or raw log text. Runs the shared detection pipeline over the whole block
+  so every real identifier in it becomes its ``[TYPE_00n]`` alias while
+  ordinary words are untouched; newlines become ``<br>``. Fail-closed --
+  see ``apps.ai_core.services.alias_engine.sanitize_prose_for_display``.
+
+Both use the same org-scoped ``AliasMapping`` the AI-boundary sanitizer
+uses, so a value reads identically everywhere. Neither has a click-to-reveal
+affordance yet -- that's Part 6.
 
 ``organization`` is always passed explicitly by the caller (the record's own
-``.organization``, or whatever the view resolved for the page); this tag
-never guesses one.
+``.organization``, or whatever the view resolved for the page); these tags
+never guess one.
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ from apps.ai_core.services.alias_engine import (
     get_request_alias_store,
     identifier_type_for_system,
     is_non_identity_sentinel,
+    sanitize_prose_for_display,
 )
 
 register = template.Library()
@@ -50,4 +55,14 @@ def alias_field(context, value, identifier_type, organization):
     return format_html(
         '<span class="af-alias">{}</span>',
         store.display_alias_for(text, identifier_type),
+    )
+
+
+@register.simple_tag(takes_context=True)
+def alias_prose(context, value, organization):
+    """Sanitize a block of stored free text / AI prose for display: every
+    real identifier becomes its stable ``[TYPE_00n]`` alias, ordinary words
+    are left untouched, newlines become ``<br>``. Fail-closed."""
+    return sanitize_prose_for_display(
+        value, organization, request=context.get("request")
     )

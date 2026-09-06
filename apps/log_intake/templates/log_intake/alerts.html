@@ -86,7 +86,7 @@
                         <span class="incident-queue-card__time">{{ alert.time_display }}</span>
                     </div>
 
-                    <h3 class="incident-queue-card__title">{{ alert.summary }}</h3>
+                    <h3 class="incident-queue-card__title">{% alias_prose alert.summary alert.organization %}</h3>
 
                     <div class="incident-queue-card__meta">
                         <span>{{ alert.source_tool }}</span>

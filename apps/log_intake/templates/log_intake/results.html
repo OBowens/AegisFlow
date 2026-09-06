@@ -102,7 +102,7 @@
                             <tr>
                                 <td class="results-alert-cell">
                                     <span class="results-alert-dot results-alert-dot--{{ alert.severity }}"></span>
-                                    <strong>{{ alert.summary }}</strong>
+                                    <strong>{% alias_prose alert.summary alert.organization %}</strong>
                                 </td>
                                 <td>{{ alert.source_tool }}</td>
                                 <td>
@@ -187,7 +187,7 @@
                                 {% endif %}
                             </div>
                             <div class="results-incident-card__copy">
-                                <h3>{{ incident.title }}</h3>
+                                <h3>{% alias_prose incident.title incident.organization %}</h3>
                             </div>
                             <span class="severity-pill severity-pill--{{ incident.severity }}">{{ incident.severity_label }}</span>
                         </div>
@@ -246,7 +246,7 @@
             <h3>Key Findings</h3>
             <ul class="results-summary-list">
                 {% for finding in ai_key_findings %}
-                    <li>{{ finding }}</li>
+                    <li>{% alias_prose finding organization %}</li>
                 {% endfor %}
             </ul>
         </section>
@@ -277,7 +277,7 @@
             </div>
             <div>
                 <h3>Recommended Next Step</h3>
-                <p>{{ recommended_next_step }}</p>
+                <p>{% alias_prose recommended_next_step organization %}</p>
             </div>
         </section>
 

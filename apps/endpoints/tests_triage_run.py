@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from config.testcase import AuthedTestCase
+from apps.ai_core.models import AliasMapping
 from apps.audit.models import AIRun
 from apps.endpoints.models import Endpoint, EndpointCorrelationCandidate, EndpointEvent
 from apps.endpoints.services.triage_run import run_triage_scan
@@ -310,7 +311,14 @@ class SurfacesInWorkQueueTests(AuthedTestCase):
 
         queue = self.client.get("/incidents/?tab=queue")
         self.assertEqual(queue.status_code, 200)
-        self.assertContains(queue, "endpoint activity on WIN-PILOT-01")
+        # The incident title is prose with the endpoint name in it, so the
+        # queue renders it through {% alias_prose %}: name aliased, rest intact.
+        host_alias = AliasMapping.objects.get(
+            organization=org, identifier_type="HOST", real_value="WIN-PILOT-01"
+        ).display_alias
+        self.assertContains(queue, "endpoint activity on")
+        self.assertContains(queue, host_alias)
+        self.assertNotContains(queue, "WIN-PILOT-01")
 
         detail = self.client.get(f"/incidents/{incident_id}/")
         self.assertEqual(detail.status_code, 200)

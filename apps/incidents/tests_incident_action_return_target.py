@@ -18,6 +18,7 @@ from django.test import TestCase
 from config.testcase import AuthedTestCase
 from django.urls import reverse
 
+from apps.ai_core.models import AliasMapping
 from apps.incidents.models import AnalystQuestion, IncidentComparison, IncidentGroup
 from apps.organizations.models import Organization
 
@@ -103,7 +104,16 @@ class IncidentActionReturnTargetTestCase(AuthedTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "incidents/workflow.html")
         self.assertTemplateNotUsed(response, "incidents/detail.html")
-        self.assertContains(response, "In plain terms: someone tried many passwords on DB01.")
+        # AI prose renders through {% alias_prose %}: the affected system
+        # is aliased inside the sentence, the rest is intact. (DB01 still
+        # appears in the page <title> -- plain-text surfaces are a later part.)
+        host_alias = AliasMapping.objects.get(
+            organization=self.organization, identifier_type="HOST", real_value="DB01"
+        ).display_alias
+        self.assertContains(
+            response, f'In plain terms: someone tried many passwords on '
+            f'<span class="af-alias">{host_alias}</span>.'
+        )
 
     def test_compare_with_return_to_workflow_renders_that_stage_not_detail(self):
         other = IncidentGroup.objects.create(

@@ -6,7 +6,7 @@
 {% block app_content %}
 <section class="page-intro incident-page-intro">
     <div class="page-intro__copy">
-        <p class="af-eyebrow">WORK QUEUE / INCIDENT INVESTIGATION</p><h1>{{ incident.title }}</h1>
+        <p class="af-eyebrow">WORK QUEUE / INCIDENT INVESTIGATION</p><h1>{% alias_prose incident.title incident.organization %}</h1>
         <nav class="incident-breadcrumbs" aria-label="Breadcrumb">
             <a href="{% url 'core:index' %}">Dashboard</a>
             <svg class="icon"><use href="#icon-chevron-down"></use></svg>
@@ -35,7 +35,7 @@
         </div>
 
         <div class="incident-hero__copy">
-            <h2>{{ incident.title }}</h2>
+            <h2>{% alias_prose incident.title incident.organization %}</h2>
             <div class="incident-hero__chips">
                 <div class="incident-meta-chip-group">
                     <span>Severity</span>
@@ -164,7 +164,7 @@
             <span>AI Summary</span>
             <svg class="icon"><use href="#icon-sparkles"></use></svg>
         </h2>
-        <p>{{ incident_summary }}</p>
+        <p>{% alias_prose incident_summary incident.organization %}</p>
     </div>
 </section>
 
@@ -210,7 +210,7 @@
         </div>
     </div>
 
-    <p class="incident-risk-text">{{ risk_snapshot.reasoning }}</p>
+    <p class="incident-risk-text">{% alias_prose risk_snapshot.reasoning incident.organization %}</p>
 </section>
 
 <section class="dashboard-panel incident-detail-panel" id="key-findings-panel">
@@ -226,7 +226,7 @@
             {% for gap in gap_cards %}
                 <div class="status-row">
                     <span class="status-row__dot status-row__dot--{{ gap.priority }}"></span>
-                    <span class="status-row__label">{{ gap.title }}</span>
+                    <span class="status-row__label">{% alias_prose gap.title incident.organization %}</span>
                     <span class="status-row__value">{{ gap.priority_label }}</span>
                 </div>
             {% endfor %}
@@ -249,7 +249,7 @@
             <span>AI Analysis</span>
             <svg class="icon"><use href="#icon-sparkles"></use></svg>
         </h2>
-        <p>{{ analysis_result.analysis|linebreaksbr }}</p>
+        <p>{% alias_prose analysis_result.analysis incident.organization %}</p>
         <p class="incident-ai-summary__meta">
             Model: {{ analysis_result.model }} &middot; Generated: {{ analysis_result.generated_at }}
         </p>
@@ -291,7 +291,7 @@
         {% if plain_language_error %}
             <p class="incident-ai-summary__meta">{{ plain_language_error }}</p>
         {% elif plain_language_result %}
-            <p>{{ plain_language_result.explanation|linebreaksbr }}</p>
+            <p>{% alias_prose plain_language_result.explanation incident.organization %}</p>
             <p class="incident-ai-summary__meta">
                 Model: {{ plain_language_result.model }} &middot; Generated: {{ plain_language_result.generated_at }}
             </p>
@@ -321,7 +321,7 @@
         {% if management_error %}
             <p class="incident-ai-summary__meta">{{ management_error }}</p>
         {% elif management_result %}
-            <p>{{ management_result.explanation|linebreaksbr }}</p>
+            <p>{% alias_prose management_result.explanation incident.organization %}</p>
             <p class="incident-ai-summary__meta">
                 Model: {{ management_result.model }} &middot; Generated: {{ management_result.generated_at }}
             </p>
@@ -351,7 +351,7 @@
         {% if technical_report_error %}
             <p class="incident-ai-summary__meta">{{ technical_report_error }}</p>
         {% elif technical_report_result %}
-            <p>{{ technical_report_result.report_text|linebreaksbr }}</p>
+            <p>{% alias_prose technical_report_result.report_text incident.organization %}</p>
             <p class="incident-ai-summary__meta">
                 Generated: {{ technical_report_result.generated_at }}
                 &middot; <a href="{{ technical_report_result.detail_url }}">View full report</a>
@@ -382,7 +382,7 @@
         {% if incident_report_error %}
             <p class="incident-ai-summary__meta">{{ incident_report_error }}</p>
         {% elif incident_report_result %}
-            <p>{{ incident_report_result.report_text|linebreaksbr }}</p>
+            <p>{% alias_prose incident_report_result.report_text incident.organization %}</p>
             <p class="incident-ai-summary__meta">
                 Generated: {{ incident_report_result.generated_at }}
                 &middot; <a href="{{ incident_report_result.detail_url }}">View full report</a>
@@ -423,8 +423,8 @@
             <ul class="incident-qa-thread">
                 {% for qa in qa_thread %}
                     <li class="incident-qa-thread__item">
-                        <p class="incident-qa-thread__question"><strong>Q:</strong> {{ qa.question }}</p>
-                        <p class="incident-qa-thread__answer"><strong>A:</strong> {{ qa.answer|linebreaksbr }}</p>
+                        <p class="incident-qa-thread__question"><strong>Q:</strong> {% alias_prose qa.question incident.organization %}</p>
+                        <p class="incident-qa-thread__answer"><strong>A:</strong> {% alias_prose qa.answer incident.organization %}</p>
                         <p class="incident-ai-summary__meta">
                             Model: {{ qa.model }} &middot; Asked: {{ qa.asked_at }}
                         </p>
@@ -445,7 +445,7 @@
         </h2>
         <span class="severity-pill severity-pill--medium">{{ prior_source_ip_matches.count }} PRIOR INCIDENT{{ prior_source_ip_matches.count|pluralize }}</span>
     </div>
-    <p>{{ prior_source_ip_matches.headline }}</p>
+    <p>{% alias_prose prior_source_ip_matches.headline incident.organization %}</p>
     <ul class="incident-evidence-list">
         {% for match in prior_source_ip_matches.items %}
             <li>
@@ -453,7 +453,7 @@
                 <span>{{ match.detected_display }}</span>
                 <strong>{% alias_field match.source_ip "IP" incident.organization %}</strong>
                 <a class="link-inline" href="{{ match.incident_url }}">
-                    <span>{{ match.incident_title }}</span>
+                    <span>{% alias_prose match.incident_title incident.organization %}</span>
                     <svg class="icon"><use href="#icon-arrow-right"></use></svg>
                 </a>
                 <form method="post" action="{{ compare_url }}" style="display:contents" data-ai-action>
@@ -508,11 +508,11 @@
                         <p class="incident-qa-thread__question">
                             <strong>Compared with:</strong>
                             <a class="link-inline" href="{{ comparison.compared_incident_url }}">
-                                <span>Incident #{{ comparison.compared_incident_id }} -- {{ comparison.compared_incident_title }}</span>
+                                <span>Incident #{{ comparison.compared_incident_id }} -- {% alias_prose comparison.compared_incident_title incident.organization %}</span>
                                 <svg class="icon"><use href="#icon-arrow-right"></use></svg>
                             </a>
                         </p>
-                        <p class="incident-qa-thread__answer">{{ comparison.comparison|linebreaksbr }}</p>
+                        <p class="incident-qa-thread__answer">{% alias_prose comparison.comparison incident.organization %}</p>
                         <p class="incident-ai-summary__meta">
                             Model: {{ comparison.model }} &middot; Generated: {{ comparison.generated_at }}
                         </p>
@@ -549,7 +549,7 @@
                 <li class="incident-actions-list__item">
                     <span class="incident-actions-list__number">{{ action.number }}</span>
                     <div class="incident-actions-list__copy">
-                        <p>{{ action.text }}</p>
+                        <p>{% alias_prose action.text incident.organization %}</p>
                         <div class="incident-actions-list__badges">
                             {% if action.is_ai_generated %}
                                 <span class="playbook-step-ai-badge">
@@ -628,7 +628,7 @@
                             <span class="incident-timeline__time">{{ item.time_display }}</span>
                             <div class="incident-timeline__copy">
                                 <strong>{{ item.detail }}</strong>
-                                <span>{{ group.title }}</span>
+                                <span>{% alias_prose group.title incident.organization %}</span>
                             </div>
                         </li>
                     {% endfor %}
@@ -658,7 +658,7 @@
                 {% for group in evidence_groups %}
                     <section class="incident-evidence-group">
                         <div class="incident-evidence-group__head">
-                            <h3>{{ group.title }}</h3>
+                            <h3>{% alias_prose group.title incident.organization %}</h3>
                             <span class="incident-count-pill">{{ group.count }}</span>
                         </div>
                         <ul class="incident-evidence-list">
@@ -704,8 +704,8 @@
                             <svg class="icon"><use href="#icon-warning"></use></svg>
                         </div>
                         <div class="incident-gap-card__copy">
-                            <h3>{{ gap.title }}</h3>
-                            <p>{{ gap.description }}</p>
+                            <h3>{% alias_prose gap.title incident.organization %}</h3>
+                            <p>{% alias_prose gap.description incident.organization %}</p>
                         </div>
                     </section>
                 {% endfor %}

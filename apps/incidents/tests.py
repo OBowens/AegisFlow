@@ -403,7 +403,11 @@ class SourceIPCorrelationTestCase(AuthedTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Related Prior Activity")
         self.assertContains(response, "198.51.100.77")
-        self.assertContains(response, first_incident.title)
+        # The prior incident's title is prose with an affected system in it,
+        # so it renders through {% alias_prose %} -- the system is aliased,
+        # the rest of the title is intact.
+        self.assertNotContains(response, first_incident.title)
+        self.assertContains(response, "High severity authentication activity on")
         self.assertContains(response, "1 prior incident")
         self.assertContains(response, "14 day")
 

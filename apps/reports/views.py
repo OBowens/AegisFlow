@@ -116,6 +116,7 @@ def report_list(request):
             "page_title": "Reports",
             "page_description": "Executive, technical, incident, risk, and readiness reports generated from AI analysis.",
             "active_nav": "reports",
+            "organization": organization,
             "organization_name": organization.name if organization else "Demo Organization",
             "organization_plan": "Small Business Plan",
             "dashboard_updated_at": _format_dashboard_datetime(page_updated_at),

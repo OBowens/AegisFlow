@@ -41,9 +41,15 @@ before/after matrix.
 from __future__ import annotations
 
 import ipaddress
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Protocol
+
+from django.utils.html import conditional_escape
+from django.utils.safestring import mark_safe
+
+logger = logging.getLogger(__name__)
 
 # Any already-inserted alias -- the ``[[TYPE_n]]`` AI-boundary token OR the
 # ``[TYPE_n]`` on-screen display label. Every pass transforms only the text
@@ -672,3 +678,137 @@ def resolve_alias_label_to_real_value(organization, alias_label: str) -> str | N
         .values_list("real_value", flat=True)
         .first()
     )
+
+
+# ---------------------------------------------------------------------------
+# display-time free-text / prose sanitization (Part 5)
+#
+# Runs the SAME reusable pipeline the AI boundary uses -- run_passes, the
+# regexes, the dictionary passes, all unchanged -- over a block of already
+# stored prose (an AI analysis, a composed incident title, a raw log line)
+# so every real identifier in it renders as its stable [TYPE_00n] alias
+# while ordinary words are left untouched. run_passes and
+# collect_org_identifiers are untouched; the only addition is a
+# DISPLAY-ONLY dictionary augmentation from existing AliasMapping rows,
+# which is strictly a superset of what the AI boundary would detect.
+#
+# Fail-closed: if anything in the pipeline raises for a block, that block
+# is replaced with a fixed marker -- never rendered raw (an identifier
+# might have slipped through) and never half-substituted (looks done,
+# isn't). No reveal control yet -- that's Part 6.
+# ---------------------------------------------------------------------------
+
+PROSE_SANITIZE_FAILED_MARKER = "[hidden -- identifier check failed; reload to try again]"
+
+# AliasMapping.identifier_type -> the run_passes dictionary bucket it feeds.
+# IP / EMAIL / PATH have no dictionary pass (regex-only) and are omitted --
+# their regexes already cover the residual, matching the AI boundary.
+_PROSE_DICT_BUCKET = {
+    "HOST": "HOST",
+    "USER": "USER",
+    "PERSON": "PERSON",
+    "DOMAIN": "DOMAIN",
+    "ORG": "ORG",
+}
+
+# A rendered display alias anywhere inside a larger string, e.g. "[HOST_003]".
+_DISPLAY_ALIAS_SCAN_RE = re.compile(r"\[[A-Z]+_\d+\]")
+
+
+def get_request_prose_identifiers(request, organization) -> dict:
+    """The display-only augmented identifier dictionary for prose
+    sanitization: ``collect_org_identifiers(organization)`` (unchanged -- the
+    same seed the AI boundary uses) PLUS every existing
+    ``AliasMapping.real_value`` for the org, bucketed by identifier type.
+
+    The augmentation only ADDS terms. It strengthens detection for the
+    dictionary-only / narrow-regex types (a lowercase bare hostname, a bare
+    username or person name) using values already established as identifiers
+    for this org -- exactly the AI boundary's documented residual risk.
+    Cached per request.
+    """
+    if organization is None:
+        return {}
+    if request is not None:
+        cache = getattr(request, "_prose_identifier_maps", None)
+        if cache is None:
+            cache = {}
+            request._prose_identifier_maps = cache
+        cached = cache.get(organization.pk)
+        if cached is not None:
+            return cached
+
+    from apps.ai_core.models import AliasMapping
+
+    known = {
+        key: set(values)
+        for key, values in collect_org_identifiers(organization).items()
+    }
+    for identifier_type, real_value in AliasMapping.objects.filter(
+        organization=organization
+    ).values_list("identifier_type", "real_value"):
+        bucket = _PROSE_DICT_BUCKET.get(identifier_type)
+        if bucket and real_value:
+            known.setdefault(bucket, set()).add(real_value)
+
+    if request is not None:
+        cache[organization.pk] = known
+    return known
+
+
+def _prose_to_safe_html(text: str, alias_labels: set):
+    """Escape every non-alias span of ``text`` and wrap each display alias we
+    actually produced in a plain ``af-alias`` span (no reveal control),
+    rendering newlines as ``<br>`` to match the templates' old
+    ``|linebreaksbr``."""
+    pieces: list[str] = []
+    last = 0
+    for match in _DISPLAY_ALIAS_SCAN_RE.finditer(text):
+        label = match.group(0)
+        if label not in alias_labels:
+            # A literal "[HOST_5]" we did not produce -- ordinary text.
+            continue
+        pieces.append(str(conditional_escape(text[last:match.start()])))
+        pieces.append('<span class="af-alias">' + label + "</span>")
+        last = match.end()
+    pieces.append(str(conditional_escape(text[last:])))
+    return mark_safe("".join(pieces).replace("\n", "<br>"))
+
+
+def sanitize_prose_for_display(text, organization, *, request=None):
+    """Return ``text`` as display-safe HTML with every detected real
+    identifier replaced by its stable ``[TYPE_00n]`` alias, ordinary text
+    HTML-escaped, and newlines rendered as ``<br>``.
+
+    Fail-closed: any exception in the detection/substitution pipeline yields
+    :data:`PROSE_SANITIZE_FAILED_MARKER` for the whole block -- never the raw
+    text, never a partially substituted result.
+    """
+    if text is None or text == "":
+        return ""
+    if organization is None:
+        # No org -> no dictionary and no persistent aliases to resolve
+        # against. A block that might carry an identifier fails closed.
+        return PROSE_SANITIZE_FAILED_MARKER
+    try:
+        store = get_request_alias_store(request, organization)
+        known = get_request_prose_identifiers(request, organization)
+        tokenized = run_passes(str(text), known, store)
+
+        token_to_mapping = {
+            mapping.ai_token: mapping for mapping in store._touched.values()
+        }
+
+        def _token_to_display(match):
+            mapping = token_to_mapping.get(match.group(0))
+            return mapping.display_alias if mapping is not None else match.group(0)
+
+        aliased = _TOKEN_RE.sub(_token_to_display, tokenized)
+        produced = {mapping.display_alias for mapping in token_to_mapping.values()}
+        return _prose_to_safe_html(aliased, produced)
+    except Exception as exc:  # fail closed -- see this section's header
+        logger.warning(
+            "prose display sanitization failed (%s); block hidden",
+            type(exc).__name__,
+        )
+        return PROSE_SANITIZE_FAILED_MARKER

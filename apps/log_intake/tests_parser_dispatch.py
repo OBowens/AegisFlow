@@ -17,6 +17,7 @@ from django.test import TestCase
 from config.testcase import AuthedTestCase
 from django.urls import reverse
 
+from apps.ai_core.models import AliasMapping
 from apps.log_intake.models import ParsedAlert, UploadedLogFile
 from apps.log_intake.services.parser import parse_uploaded_log
 from apps.organizations.models import Organization
@@ -158,7 +159,15 @@ class DedicatedParserUploadViewTestCase(AuthedTestCase):
             reverse("log_intake:results", args=[uploaded_file.id])
         )
         self.assertEqual(results_response.status_code, 200)
-        self.assertContains(results_response, "10.20.15.87")
+        # The alert summary renders through {% alias_prose %}, so the source
+        # IP shows as its stable alias, never the real value.
+        ip_alias = AliasMapping.objects.get(
+            organization=uploaded_file.organization,
+            identifier_type="IP",
+            real_value="10.20.15.87",
+        )
+        self.assertContains(results_response, ip_alias.display_alias)
+        self.assertNotContains(results_response, "10.20.15.87")
 
     def test_backup_upload_dispatches_and_parses(self):
         uploaded_file = self._post_upload(

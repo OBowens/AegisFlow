@@ -26,6 +26,7 @@ from django.urls import reverse
 from apps.ai_core.modules.analyst import run_incident_analysis
 from apps.ai_core.providers.anthropic_provider import AnthropicProvider
 from apps.ai_core.sanitizer import sanitize_for_ai
+from apps.ai_core.models import AliasMapping
 from apps.ai_core.services.alias_engine import EphemeralAliasStore, run_passes
 from apps.incidents.models import AnalystResult, IncidentEvidence, IncidentGroup
 from apps.log_intake.models import ParsedAlert, UploadedLogFile
@@ -390,12 +391,24 @@ class ProviderRehydratesTheResponseTests(_IncidentFixture):
             response = self.client.post(analyze_url)
 
         self.assertEqual(response.status_code, 200)
+        # Storage is still the rehydrated text -- rehydration is unchanged.
         saved = AnalystResult.objects.get(incident=self.incident)
         self.assertIn("203.0.113.77", saved.analysis_text)
         self.assertIn("PAYROLL-DB-01", saved.analysis_text)
         self.assertNotIn("[[IP_1]]", saved.analysis_text)
-        # and it's shown back on the page with the real values
-        self.assertContains(response, "203.0.113.77")
+        # But the page re-aliases that prose on the way out (Part 5) -- the
+        # real values never render.
+        for identifier_type, real_value in (
+            ("IP", "203.0.113.77"),
+            ("HOST", "PAYROLL-DB-01"),
+        ):
+            self.assertNotContains(response, real_value)
+            alias = AliasMapping.objects.get(
+                organization=self.organization,
+                identifier_type=identifier_type,
+                real_value=real_value,
+            ).display_alias
+            self.assertContains(response, alias)
 
 
 # ---------------------------------------------------------------------------
