@@ -224,6 +224,32 @@ def ask_app_assistant(request):
             return JsonResponse({"error": "No organization is available."}, status=400)
         return redirect("organizations:app_assistant")
 
+    # "What should I fix first / focus on / do next" is answered directly
+    # from the most recent Prioritizer briefing -- a plain DB read, no AI
+    # call and no live-incident context -- instead of the static corpus
+    # deflecting the user to another page. Runs before deny_ai_call/AIRun
+    # precisely because it is not an AI call.
+    from apps.ai_core.services.priority_intent import (
+        build_priority_shortcut_answer,
+        looks_like_prioritization_question,
+    )
+
+    if looks_like_prioritization_question(question_text):
+        shortcut_question = AppAssistantQuestion.objects.create(
+            organization=organization,
+            question_text=question_text,
+            answer_text=build_priority_shortcut_answer(organization),
+            model_used="",  # no model -- no AI call was made
+        )
+        if wants_json:
+            return JsonResponse({
+                "question": shortcut_question.question_text,
+                "answer": shortcut_question.answer_text,
+                "model": shortcut_question.model_used,
+                "asked_at": shortcut_question.asked_at.isoformat(),
+            })
+        return redirect("organizations:app_assistant")
+
     # Local import: app_assistant.py imports apps.organizations.models
     # (Organization) at module load time, so importing it here at
     # module load time in this file would be circular.
