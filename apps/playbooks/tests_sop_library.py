@@ -79,4 +79,64 @@ class SOPLibraryPageTestCase(AuthedTestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(SOPChecklist.objects.get(name="Uploaded Checklist").is_active)
+        created = SOPChecklist.objects.get(name="Uploaded Checklist")
+        self.assertFalse(created.is_active)
+        self.assertEqual(created.checklist_items, "Isolate endpoint\nCollect logs")
+
+    def test_binary_upload_is_rejected_with_friendly_error_not_500(self):
+        # A real .doc is an OLE compound file full of NUL bytes. Previously this
+        # decoded to a lossy string, slipped past the empty check, and 500'd at
+        # INSERT ("A string literal cannot contain NUL (0x00) characters").
+        doc_bytes = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 512 + b"SOP body"
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Binary Upload",
+                "incident_type": "malware",
+                "version": "1.0",
+                "checklist_file": SimpleUploadedFile(
+                    "procedure.doc", doc_bytes, content_type="application/msword"
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "look like a plain text file")
+        self.assertFalse(SOPChecklist.objects.filter(name="Binary Upload").exists())
+
+    def test_text_file_with_embedded_nul_byte_is_rejected(self):
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Nul Text",
+                "incident_type": "malware",
+                "version": "1.0",
+                "checklist_file": SimpleUploadedFile(
+                    "procedure.txt", b"Step one\x00Step two", content_type="text/plain"
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "look like a plain text file")
+        self.assertFalse(SOPChecklist.objects.filter(name="Nul Text").exists())
+
+    def test_oversized_file_is_rejected_by_size_cap(self):
+        oversized = SimpleUploadedFile(
+            "huge.txt", b"a" * (61 * 1024 * 1024), content_type="text/plain"
+        )
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Oversized Upload",
+                "incident_type": "malware",
+                "version": "1.0",
+                "checklist_file": oversized,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "That file is too large")
+        self.assertFalse(SOPChecklist.objects.filter(name="Oversized Upload").exists())
