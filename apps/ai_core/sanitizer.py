@@ -12,8 +12,13 @@ critical-system owner names -- are replaced with placeholder tokens
 AI output, the on-page evidence display) ever sees a token.
 
 Detection itself (the regexes, the dictionary-first passes, the fixed pass
-order) lives in ``apps/ai_core/services/alias_engine.py`` and is unchanged
-from the original design (approved 2026-08-31). What changed here:
+order) lives in ``apps/ai_core/services/alias_engine.py``. The pass order
+and semantics are the original design (approved 2026-08-31); a 2026-09-05
+amendment relaxed the IPv4 / IPv6 / bare-host trailing lookaheads so a
+sentence-final identifier ("...from 203.0.113.9.") is no longer missed --
+strictly more values pseudonymized, never fewer (see that module's
+docstring and the before/after matrix in tests_sanitizer.py). What
+changed here:
 
 * With an ``organization``, token assignment is no longer ephemeral --
   it's backed by ``apps.ai_core.models.AliasMapping``, so the same real

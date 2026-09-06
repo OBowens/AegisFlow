@@ -26,6 +26,7 @@ from django.urls import reverse
 from apps.ai_core.modules.analyst import run_incident_analysis
 from apps.ai_core.providers.anthropic_provider import AnthropicProvider
 from apps.ai_core.sanitizer import sanitize_for_ai
+from apps.ai_core.services.alias_engine import EphemeralAliasStore, run_passes
 from apps.incidents.models import AnalystResult, IncidentEvidence, IncidentGroup
 from apps.log_intake.models import ParsedAlert, UploadedLogFile
 from apps.organizations.models import CriticalSystem, Organization
@@ -125,6 +126,104 @@ class SanitizerUnitTests(SimpleTestCase):
         self.assertEqual(result.text, "raw 203.0.113.9 stays")
         self.assertEqual(result.mapping, {})
         self.assertEqual(result.restore("echo 203.0.113.9"), "echo 203.0.113.9")
+
+
+class TrailingLookaheadAmendmentTests(SimpleTestCase):
+    """2026-09-05 amendment to the 2026-08-31 detection design: the IPv4 /
+    IPv6 / bare-host regexes' trailing lookaheads were relaxed so a
+    sentence-terminating period no longer blocks the match, and ``_TOKEN_RE``
+    now also protects the ``[TYPE_n]`` display-label form.
+
+    Every change is a strict *tightening* of the AI boundary -- an
+    identifier that previously reached the model in the clear (sentence-final
+    in a prompt's prose) is now pseudonymized. No case where a value that
+    was tokenized stops being tokenized. This class is the before/after
+    matrix, locked in.
+    """
+
+    def _sanitize(self, text):
+        return sanitize_for_ai(text, organization=None)
+
+    # --- the fix: sentence-final identifiers are now caught ---------------
+
+    def test_sentence_final_ipv4_is_now_tokenized(self):
+        r = self._sanitize("AegisFlow grouped 7 alerts from source IP 203.0.113.9.")
+        self.assertNotIn("203.0.113.9", r.text)
+        self.assertIn("[[IP_1]]", r.text)
+        # The sentence-terminating period is preserved, not swallowed.
+        self.assertTrue(r.text.rstrip().endswith("[[IP_1]]."))
+
+    def test_sentence_final_ipv4_before_a_space_is_now_tokenized(self):
+        r = self._sanitize("The source was 203.0.113.9. Then it moved on.")
+        self.assertNotIn("203.0.113.9", r.text)
+        self.assertIn("[[IP_1]] . Then".replace(" ", ""), r.text.replace(" ", ""))
+
+    def test_sentence_final_bare_host_is_now_tokenized(self):
+        r = self._sanitize("The compromised host is WEB-01. Isolate it.")
+        self.assertNotIn("WEB-01", r.text)
+        self.assertIn("[[HOST_1]].", r.text)
+
+    def test_sentence_final_ipv6_is_now_tokenized(self):
+        r = self._sanitize("Traffic originated from 2001:db8::1.")
+        self.assertNotIn("2001:db8::1", r.text)
+        self.assertIn("[[IP_1]]", r.text)
+
+    # --- non-regressions: things that must still NOT match ---------------
+
+    def test_five_octet_string_is_still_not_an_ipv4(self):
+        r = self._sanitize("Build tag 1.2.3.4.5 shipped today.")
+        self.assertEqual(r.mapping, {})
+        self.assertIn("1.2.3.4.5", r.text)
+
+    def test_ipv4_directly_followed_by_a_letter_is_still_left_alone(self):
+        r = self._sanitize("Firmware 10.0.0.1beta and 1.2.3.4a are version strings.")
+        self.assertEqual(r.mapping, {})
+        self.assertIn("10.0.0.1beta", r.text)
+        self.assertIn("1.2.3.4a", r.text)
+
+    def test_out_of_range_octet_is_still_rejected_by_the_validator(self):
+        r = self._sanitize("Not an address: 999.1.1.1.")
+        self.assertEqual(r.mapping, {})
+        self.assertIn("999.1.1.1", r.text)
+
+    def test_dotted_host_continuation_is_tokenized_whole_not_split_by_bare_host(self):
+        # "WEB-01.corp" is a whole internal name -- an earlier pass
+        # tokenizes it as one unit (as DOMAIN, pre-existing); the relaxed
+        # bare-host regex must not fire on just "WEB-01" and leave ".corp"
+        # dangling in the clear.
+        r = self._sanitize("The box WEB-01.corp answered the probe.")
+        self.assertNotIn("WEB-01.corp", r.text)
+        self.assertNotIn("WEB-01", r.text)
+        self.assertNotIn(".corp", r.text)
+        self.assertEqual(list(r.mapping.values()), ["WEB-01.corp"])
+
+    def test_sentence_final_stopword_host_tag_is_still_filtered(self):
+        r = self._sanitize("The digests use SHA256. TLS13. is also required.")
+        self.assertEqual(r.mapping, {})
+        self.assertIn("SHA256", r.text)
+        self.assertIn("TLS13", r.text)
+
+    def test_mid_sentence_behaviour_is_unchanged(self):
+        r = self._sanitize("Host WEB-01 at 203.0.113.9 was hit by 2001:db8::1 now.")
+        for real in ("WEB-01", "203.0.113.9", "2001:db8::1"):
+            self.assertNotIn(real, r.text)
+
+    # --- _TOKEN_RE now protects the display-label form too --------------
+
+    def test_running_the_pipeline_over_text_that_already_has_display_labels_is_idempotent(self):
+        # A composed string aliased at construction ("... [IP_007] ...")
+        # then passed back through the pipeline must not have its label
+        # chewed up by the bare-host pass (IP_007 looks host-shaped).
+        store = EphemeralAliasStore()
+        text = "Summary: the source IP was [IP_007] and the host was [HOST_003]."
+        out = run_passes(text, {}, store)
+        self.assertEqual(out, text)
+        self.assertEqual(store.mapping, {})
+
+    def test_double_bracket_ai_tokens_are_still_protected(self):
+        store = EphemeralAliasStore()
+        out = run_passes("attacker at [[IP_1]] hit [[HOST_2]] hard", {}, store)
+        self.assertEqual(out, "attacker at [[IP_1]] hit [[HOST_2]] hard")
 
 
 # ---------------------------------------------------------------------------

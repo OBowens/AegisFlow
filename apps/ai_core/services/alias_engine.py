@@ -19,13 +19,23 @@ only caller; a future reveal-by-alias system (display-layer sanitization) is
 meant to be a second caller against the same ``PersistentAliasStore`` /
 ``AliasMapping``, not a reimplementation.
 
-Detection design (unchanged from the original sanitizer -- see its module
-docstring history): dictionary-first (the organization's real
-``CriticalSystem`` / affected-system / account / endpoint values), then
-bounded regex, in a fixed order: org name -> person names -> internal
-domains -> emails -> FQDN hosts -> bare hosts -> IPs -> file paths ->
-usernames. General name/username NER over free prose is explicitly out of
-scope (accepted residual risk).
+Detection design (from the original sanitizer -- see its module docstring
+history): dictionary-first (the organization's real ``CriticalSystem`` /
+affected-system / account / endpoint values), then bounded regex, in a
+fixed order: org name -> person names -> internal domains -> emails ->
+FQDN hosts -> bare hosts -> IPs -> file paths -> usernames. General
+name/username NER over free prose is explicitly out of scope (accepted
+residual risk).
+
+2026-09-05 amendment: the IPv4 / IPv6 / bare-host regexes' trailing
+lookaheads were relaxed so a sentence-terminating period no longer blocks
+a match ("...from source IP 203.0.113.9." is now detected), and
+``_TOKEN_RE`` now also protects the ``[TYPE_n]`` display-label form. Every
+change is a strict *tightening* of the AI boundary -- more real
+IPs/hosts pseudonymized before a prompt leaves the process, never fewer --
+so this is an amendment to detection *reach*, not to detection *semantics*
+or pass order. See ``apps/ai_core/tests_sanitizer.py`` for the
+before/after matrix.
 """
 
 from __future__ import annotations
@@ -35,10 +45,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
-# Any already-inserted token. Every pass transforms only the text
-# *between* these spans, so a value is never tokenized twice and a regex
-# can never chew into a token another pass produced.
-_TOKEN_RE = re.compile(r"\[\[[A-Z]+_\d+\]\]")
+# Any already-inserted alias -- the ``[[TYPE_n]]`` AI-boundary token OR the
+# ``[TYPE_n]`` on-screen display label. Every pass transforms only the text
+# *between* these spans, so a value is never tokenized twice, a regex can
+# never chew into an alias another pass produced, and running the pipeline
+# over text that already carries display labels (a composed string sent
+# through the Part 5 prose sanitizer) is idempotent.
+_TOKEN_RE = re.compile(r"\[\[[A-Z]+_\d+\]\]|\[[A-Z]+_\d+\]")
 
 # Account values that are generic roles, not a person -- left in the clear
 # because "the admin account" is a meaningful signal and these leak nothing.
@@ -88,18 +101,32 @@ _EMAIL_RE = re.compile(
 # (uppercase initial run) to keep it off ordinary lower-case prose; a
 # lower-case bare hostname that appears only in prose is the documented
 # residual risk.
-_BARE_HOST_RE = re.compile(r"(?<![\w.-])[A-Z]{2,}[A-Z0-9]*[-_]?\d{1,4}(?![\w.-])")
+#
+# The trailing guard is ``(?![\w-])(?!\.[\w-])`` rather than ``(?![\w.-])``:
+# a bare ``.`` (sentence-terminating period) no longer blocks the match, so
+# "the affected host is WEB-01." is detected, while "WEB-01.corp" (a real
+# dotted continuation, owned by the FQDN pass) still is not. (2026-09-05
+# amendment to the 2026-08-31 design.)
+_BARE_HOST_RE = re.compile(
+    r"(?<![\w.-])[A-Z]{2,}[A-Z0-9]*[-_]?\d{1,4}(?![\w-])(?!\.[\w-])"
+)
 
-_IPV4_RE = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+# Trailing guard ``(?!\w)(?!\.\d)`` rather than ``(?![\w.])``: a
+# sentence-terminating period ("...from source IP 203.0.113.9.") no longer
+# blocks the match, while "1.2.3.4.5" (dotted continuation) and "1.2.3.4a"
+# (word continuation) still do. ``_valid_ipv4`` still rejects out-of-range
+# octets. (2026-09-05 amendment.)
+_IPV4_RE = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?!\w)(?!\.\d)")
 
 # IPv6 only when it is unambiguous: a "::" compression or the full
 # eight-group form. This keeps it off "12:34:56" timestamps and MAC
 # addresses; a fully-expanded IPv6 written without "::" is residual risk.
+# Same trailing-period amendment as the IPv4 / bare-host regexes above.
 _IPV6_RE = re.compile(
     r"(?<![\w:.])"
     r"(?=[A-Fa-f0-9:]*::|(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}(?![:\w]))"
     r"[A-Fa-f0-9]{0,4}(?::[A-Fa-f0-9]{0,4}){2,7}"
-    r"(?![\w:.])"
+    r"(?![\w:])(?!\.[\w:])"
 )
 
 _WINDOWS_PATH_RE = re.compile(r"(?<![\w])[A-Za-z]:\\(?:[^\s\\/:*?\"<>|,;]+\\?)+")
