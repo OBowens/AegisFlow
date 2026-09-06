@@ -4,7 +4,7 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from django.contrib import messages
-from django.db.models import Case, IntegerField, Max, When
+from django.db.models import Max
 from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from apps.ai_core.modules.prioritizer import run_priority_briefing
 from apps.ai_core.rate_limit import deny_ai_call
+from apps.ai_core.services.priority_context import rank_open_incident_groups
 from apps.audit.models import AIRun
 from apps.organizations.services.current_organization import get_current_organization
 
@@ -60,14 +61,14 @@ TREND_WINDOW_DAYS = 7
 
 
 def dashboard(request):
+    organization = get_current_organization()
     dashboard_stats = _build_dashboard_stats()
     recent_incidents = _build_recent_incidents()
-    priority_incidents = _build_priority_incidents()
+    priority_incidents = _build_priority_incidents(organization)
     priority_incident_count = _safe_priority_incident_count()
     risk_distribution = _build_risk_distribution()
     readiness_summary = _build_readiness_summary()
     last_updated = _resolve_last_updated()
-    organization = get_current_organization()
 
     return render(
         request,
@@ -259,50 +260,45 @@ def _build_recent_incidents() -> list[dict[str, object]]:
 
 _PRIORITY_SEVERITIES = ("critical", "high")
 
-_PRIORITY_SEVERITY_RANK = Case(
-    When(severity="critical", then=2),
-    When(severity="high", then=1),
-    default=0,
-    output_field=IntegerField(),
-)
 
+def _build_priority_incidents(organization) -> list[dict[str, object]]:
+    """The "Priority incidents" section -- the lead incident of each
+    top-ranked open-incident cluster, ranked exactly the way the AI
+    prioritizer ranks them (apps.ai_core.services.priority_context), so
+    the hero call-to-action, the incident cards, and the "What Should I
+    Fix First?" briefing never disagree about what comes first.
 
-def _build_priority_incidents() -> list[dict[str, object]]:
-    """The "Priority incidents" section is labelled as the work that
-    matters most / needs attention, so it is filtered by severity
-    (critical + high), highest severity first -- not by status, and not
-    just "the most recent incidents regardless of severity".
+    Scoped to clusters that contain critical/high work -- since severity
+    is the primary sort, those clusters are a strict prefix of the full
+    ranking, so the ordering still matches the briefing exactly while the
+    grid keeps its "urgent work" framing and honest empty state.
     """
-    incidents = _safe_priority_incidents()
-    now = timezone.localtime(timezone.now(), CARIBBEAN_TIMEZONE)
-
-    return [
-        {
-            "id": incident.id,
-            "title": incident.title,
-            "severity": incident.severity,
-            "severity_label": incident.get_severity_display(),
-            "incident_type": incident.incident_type or "General incident",
-            "affected_systems": incident.affected_systems or "Systems not specified",
-            "created_display": _format_incident_timestamp(incident.created_at, now),
-        }
-        for incident in incidents
-    ]
-
-
-def _safe_priority_incidents():
-    if IncidentGroup is None:
+    if IncidentGroup is None or organization is None:
         return []
 
     try:
-        return list(
-            IncidentGroup.objects.select_related("organization")
-            .filter(severity__in=_PRIORITY_SEVERITIES)
-            .annotate(_severity_rank=_PRIORITY_SEVERITY_RANK)
-            .order_by("-_severity_rank", "-created_at")[:5]
-        )
+        clusters = [
+            cluster
+            for cluster in rank_open_incident_groups(organization)
+            if cluster.max_severity in _PRIORITY_SEVERITIES
+        ]
     except (OperationalError, ProgrammingError):
         return []
+
+    now = timezone.localtime(timezone.now(), CARIBBEAN_TIMEZONE)
+    return [
+        {
+            "id": cluster.lead_incident.id,
+            "title": cluster.lead_incident.title,
+            "severity": cluster.lead_incident.severity,
+            "severity_label": cluster.lead_incident.get_severity_display(),
+            "incident_type": cluster.lead_incident.incident_type or "General incident",
+            "affected_systems": cluster.lead_incident.affected_systems or "Systems not specified",
+            "created_display": _format_incident_timestamp(cluster.lead_incident.created_at, now),
+            "related_count": len(cluster.incidents),
+        }
+        for cluster in clusters[:5]
+    ]
 
 
 def _safe_priority_incident_count() -> int:

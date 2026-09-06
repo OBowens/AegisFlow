@@ -46,10 +46,14 @@ class DashboardViewTestCase(AuthedTestCase):
 
 
 class PriorityIncidentsTestCase(AuthedTestCase):
-    """The "Priority incidents" section is labelled as the work that
-    matters most / needs attention. Its list and count must be filtered
-    by severity (critical + high) -- not "the 5 most recent incidents
-    regardless of severity", and not a status filter.
+    """The dashboard's "Priority incidents" list and hero call-to-action
+    are the lead incident of each top-ranked open-incident *cluster*,
+    using the same ranking as the "What Should I Fix First?" AI briefing
+    (apps.ai_core.services.priority_context) -- grouped by affected
+    system, ordered severity -> risk -> age. The list is scoped to
+    clusters that contain critical/high work (a strict prefix of that
+    ranking, so ordering still matches the briefing) and the
+    ``priority_incident_count`` stat stays a simple critical+high count.
     """
 
     def setUp(self):
@@ -61,14 +65,14 @@ class PriorityIncidentsTestCase(AuthedTestCase):
             risk_profile="medium",
         )
 
-    def _incident(self, title, severity, *, status=IncidentGroup.Status.OPEN, days_ago=0):
+    def _incident(self, title, severity, *, status=IncidentGroup.Status.OPEN, days_ago=0, systems=None):
         incident = IncidentGroup.objects.create(
             organization=self.organization,
             title=title,
             incident_type="Authentication",
             severity=severity,
             status=status,
-            affected_systems="DC-01",
+            affected_systems=systems if systems is not None else title.replace(" ", "-"),
             summary="Grouped incident.",
         )
         if days_ago:
@@ -77,7 +81,7 @@ class PriorityIncidentsTestCase(AuthedTestCase):
             )
         return incident
 
-    def test_count_and_list_only_include_critical_and_high_severity(self):
+    def test_list_holds_only_clusters_with_critical_or_high_work(self):
         self._incident("Brute force on DC", IncidentGroup.Severity.CRITICAL)
         self._incident("Suspicious PowerShell", IncidentGroup.Severity.HIGH)
         self._incident("Noisy informational alert", IncidentGroup.Severity.LOW)
@@ -87,11 +91,7 @@ class PriorityIncidentsTestCase(AuthedTestCase):
 
         self.assertEqual(response.context["priority_incident_count"], 2)
         titles = [item["title"] for item in response.context["priority_incidents"]]
-        self.assertCountEqual(
-            titles, ["Brute force on DC", "Suspicious PowerShell"]
-        )
-        severities = {item["severity"] for item in response.context["priority_incidents"]}
-        self.assertEqual(severities, {"critical", "high"})
+        self.assertEqual(titles, ["Brute force on DC", "Suspicious PowerShell"])
 
     def test_resolved_high_severity_incidents_are_still_counted_not_status_filtered(self):
         self._incident(
@@ -104,15 +104,25 @@ class PriorityIncidentsTestCase(AuthedTestCase):
 
         self.assertEqual(response.context["priority_incident_count"], 1)
 
-    def test_list_is_ordered_by_severity_then_recency(self):
-        self._incident("Older high", IncidentGroup.Severity.HIGH, days_ago=10)
-        self._incident("Newer high", IncidentGroup.Severity.HIGH, days_ago=1)
-        self._incident("Older critical", IncidentGroup.Severity.CRITICAL, days_ago=20)
+    def test_same_host_incidents_collapse_to_one_entry_led_by_the_worst(self):
+        self._incident("Malware on FILE-01", IncidentGroup.Severity.CRITICAL, systems="FILE-01")
+        self._incident("Log spike on FILE-01", IncidentGroup.Severity.HIGH, systems="FILE-01")
+
+        response = self.client.get(reverse("core:index"))
+
+        priority = list(response.context["priority_incidents"])
+        self.assertEqual([item["title"] for item in priority], ["Malware on FILE-01"])
+        self.assertEqual(priority[0]["related_count"], 2)
+
+    def test_list_is_ordered_by_severity_then_age_matching_the_briefing(self):
+        self._incident("Newer high", IncidentGroup.Severity.HIGH, days_ago=1, systems="H-NEW")
+        self._incident("Older high", IncidentGroup.Severity.HIGH, days_ago=10, systems="H-OLD")
+        self._incident("Older critical", IncidentGroup.Severity.CRITICAL, days_ago=20, systems="C-OLD")
 
         response = self.client.get(reverse("core:index"))
 
         titles = [item["title"] for item in response.context["priority_incidents"]]
-        self.assertEqual(titles, ["Older critical", "Newer high", "Older high"])
+        self.assertEqual(titles, ["Older critical", "Older high", "Newer high"])
 
     def test_no_priority_incidents_shows_honest_empty_state(self):
         self._incident("Just noise", IncidentGroup.Severity.LOW)
