@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import timedelta
+from itertools import chain
 from zoneinfo import ZoneInfo
 
 from django.contrib import messages
@@ -401,6 +402,11 @@ def _get_incident_for_detail(incident_id):
             "response_playbooks__steps",
             "reports",
             "source_ip_links__related_incident",
+            # endpoint_activity incidents carry no IncidentEvidence; their
+            # evidence is the linked correlation candidate(s) and event
+            # cluster(s) -- see _build_endpoint_activity_evidence.
+            "endpoint_correlation_candidates__endpoint",
+            "endpoint_correlation_candidates__events",
         ),
         pk=incident_id,
     )
@@ -465,11 +471,15 @@ def _build_incident_detail_context(
         playbooks=playbooks,
         reports=reports,
     )
+    endpoint_activity = _build_endpoint_activity_evidence(incident)
     # Single seam where this page's structured-identifier aliases are minted;
     # every alias_field tag and the alias helpers below are then cache reads.
     warm_display_aliases(
         get_request_alias_store(request, incident.organization),
-        _incident_alias_entries(incident, evidence_items),
+        chain(
+            _incident_alias_entries(incident, evidence_items),
+            _endpoint_activity_alias_entries(endpoint_activity),
+        ),
     )
 
     primary_system = _primary_affected_system(incident.affected_systems)
@@ -519,6 +529,7 @@ def _build_incident_detail_context(
             risk_assessments=risk_assessments,
         ),
         "evidence_groups": _build_evidence_groups(evidence_items, incident.organization, request),
+        "endpoint_activity": endpoint_activity,
         "gap_cards": _build_gap_cards(gap_findings),
         "risk_snapshot": _build_risk_snapshot(risk_assessments, incident),
         "recommended_actions": _build_recommended_actions(primary_playbook),
@@ -1297,6 +1308,185 @@ def _build_evidence_groups(evidence_items, organization, request):
         )
 
     return sections
+
+
+# --- endpoint-activity incidents (Windows Endpoint Analyzer, Part 5) --------
+#
+# An "endpoint_activity" IncidentGroup carries no IncidentEvidence rows -- it
+# is raised by apps.endpoints.services.escalation from a triaged
+# EndpointCorrelationCandidate. Its evidence is that candidate (or several,
+# for sustained activity): the deterministic trigger_summary and the linked
+# EndpointEvent cluster. This section renders it for the detail page; the
+# work queue needs no change (it reads plain IncidentGroup fields).
+
+INCIDENT_TYPE_ENDPOINT_ACTIVITY = "endpoint_activity"
+ENDPOINT_PROCESS_EVENT_TYPE = "Security/4688"
+ENDPOINT_SCRIPT_BLOCK_EVENT_TYPE = "Microsoft-Windows-PowerShell/4104"
+# Long script blocks are shown truncated with an honest character count, not
+# dumped whole. Matches the spirit of endpoint_triage_context's own cap.
+ENDPOINT_SCRIPT_BLOCK_DISPLAY_LIMIT = 1200
+
+
+def _endpoint_event_data(event):
+    payload = event.payload or {}
+    data = payload.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def _endpoint_process_basename(path):
+    """The bare executable name from a process image path. This is the
+    security signal (the LOLBin's identity) and carries no identifier, so
+    it is shown in the clear -- same convention as the correlation rules'
+    own trigger_summary text (apps.endpoints.services.correlation._basename).
+    The full path is deliberately NOT shown: it can embed a username
+    (C:\\Users\\<name>\\...) and would need a PATH alias."""
+    text = (path or "").strip().replace("/", "\\")
+    return text.rsplit("\\", 1)[-1] if text else ""
+
+
+def _render_endpoint_event(event):
+    """One EndpointEvent as display-ready fields. Raw identifier values are
+    passed through untouched -- the template renders host/user through
+    {% alias_field %} and command_line/script_block_text through
+    {% alias_prose %}, so real hostnames/usernames/IPs/paths never reach
+    the page in the clear."""
+    payload = event.payload or {}
+    data = _endpoint_event_data(event)
+    common = {
+        "time_display": _format_compact_datetime(event.occurred_at),
+        "host": (payload.get("computer") or "").strip(),
+        "user": (data.get("subject_user_name") or "").strip(),
+    }
+
+    if event.event_type == ENDPOINT_SCRIPT_BLOCK_EVENT_TYPE:
+        text = (data.get("script_block_text") or "").strip()
+        truncated = len(text) > ENDPOINT_SCRIPT_BLOCK_DISPLAY_LIMIT
+        return {
+            **common,
+            "kind": "PowerShell script block (4104)",
+            "is_script_block": True,
+            "process": "",
+            "parent": "",
+            "command_line": "",
+            "script_text": text[:ENDPOINT_SCRIPT_BLOCK_DISPLAY_LIMIT] if truncated else text,
+            "script_text_truncated": truncated,
+            "script_text_total_chars": len(text),
+        }
+
+    if event.event_type == ENDPOINT_PROCESS_EVENT_TYPE:
+        return {
+            **common,
+            "kind": "Process creation (4688)",
+            "is_script_block": False,
+            "process": _endpoint_process_basename(data.get("new_process_name")),
+            "parent": _endpoint_process_basename(data.get("parent_process_name")),
+            "command_line": (data.get("command_line") or "").strip(),
+            "script_text": "",
+            "script_text_truncated": False,
+            "script_text_total_chars": 0,
+        }
+
+    # An event type neither rule set produces -- render what we have,
+    # never invent a process/command shape for it.
+    return {
+        **common,
+        "kind": event.event_type or "Endpoint event",
+        "is_script_block": False,
+        "process": "",
+        "parent": "",
+        "command_line": "",
+        "script_text": "",
+        "script_text_truncated": False,
+        "script_text_total_chars": 0,
+    }
+
+
+def _build_endpoint_activity_evidence(incident):
+    """Evidence section for an endpoint-activity incident: the deterministic
+    correlation trigger(s) and the linked EndpointEvent cluster(s).
+
+    Returns None for any other incident type, or when no correlation
+    candidate is linked (nothing honest to show -- the template falls back
+    to its normal "no evidence" state).
+
+    Never fabricates: a candidate whose EndpointEvent rows are gone still
+    shows its trigger_summary and recorded event_count, with an explicit
+    "events no longer retained" note instead of an invented list.
+    """
+    if incident.incident_type != INCIDENT_TYPE_ENDPOINT_ACTIVITY:
+        return None
+
+    candidates = sorted(
+        incident.endpoint_correlation_candidates.all(),
+        key=lambda candidate: (candidate.first_event_at, candidate.id),
+    )
+    if not candidates:
+        return None
+
+    windows = []
+    total_event_count = 0
+    for candidate in candidates:
+        events = sorted(
+            candidate.events.all(), key=lambda event: (event.occurred_at, event.id)
+        )
+        total_event_count += len(events)
+        windows.append(
+            {
+                # raw -- template renders through {% alias_prose %}. This is
+                # mechanical (which rules matched and why), never AI-derived.
+                "trigger_summary": candidate.trigger_summary,
+                "status_label": candidate.get_status_display(),
+                "triaged_at": (
+                    _format_compact_datetime(candidate.triaged_at)
+                    if candidate.triaged_at
+                    else None
+                ),
+                "window_display": (
+                    f"{_format_compact_datetime(candidate.first_event_at)} \u2013 "
+                    f"{_format_compact_datetime(candidate.last_event_at)}"
+                ),
+                "event_count": candidate.event_count,
+                # raw -- {% alias_prose %}; blank unless a real triage call completed.
+                "ai_summary": candidate.ai_summary,
+                "events_retained": bool(events),
+                "events": [_render_endpoint_event(event) for event in events],
+            }
+        )
+
+    endpoint = candidates[0].endpoint
+    window_start = candidates[0].first_event_at
+    window_end = max(candidate.last_event_at for candidate in candidates)
+    return {
+        # raw -- template renders through {% alias_field ... "HOST" %}.
+        "endpoint_name": endpoint.display_name,
+        "window_display": (
+            f"{_format_compact_datetime(window_start)} \u2013 "
+            f"{_format_compact_datetime(window_end)}"
+        ),
+        "total_event_count": total_event_count,
+        "window_count": len(windows),
+        "windows": windows,
+    }
+
+
+def _endpoint_activity_alias_entries(endpoint_activity):
+    """(value, identifier_type) pairs for the endpoint-evidence section, fed
+    into the same warm_display_aliases seam as _incident_alias_entries.
+    command_line / script_block_text / trigger_summary are warmed by
+    {% alias_prose %} itself, so only the structured host/user values need
+    listing here."""
+    if not endpoint_activity:
+        return
+    yield (
+        endpoint_activity["endpoint_name"],
+        identifier_type_for_system(endpoint_activity["endpoint_name"]),
+    )
+    for window in endpoint_activity["windows"]:
+        for event in window["events"]:
+            if event["host"]:
+                yield event["host"], identifier_type_for_system(event["host"])
+            if event["user"]:
+                yield event["user"], "USER"
 
 
 def _build_incident_inspection_data(evidence_items, incident, primary_playbook):

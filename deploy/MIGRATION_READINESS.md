@@ -5,6 +5,56 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 
 ---
 
+> ## 2026-09-06 — installed reality now DIVERGES from the `deploy/` drafts
+>
+> The app has since been moved onto the VincyPros VPS and is **deployed and
+> live** at `https://aegisflow.vincypros.com` — but **not** via the committed
+> `deploy/aegisflow.service` / `deploy/nginx-aegisflow.conf` drafts. The VPS
+> was provisioned with a home-directory layout, and the systemd unit was
+> hand-adapted for it. Installed reality vs. the drafts:
+>
+> | Aspect | Committed draft (`deploy/*`) | Actually installed on the VPS |
+> |---|---|---|
+> | App directory | `/opt/aegisflow/app` | **`/home/aegisflow/app`** |
+> | virtualenv | `/opt/aegisflow/app/venv` | **`/home/aegisflow/venv`** |
+> | `.env` | `/opt/aegisflow/app/.env` | `/home/aegisflow/app/.env` |
+> | gunicorn bind | unix socket `/run/aegisflow/gunicorn.sock` (`Type=notify`, `RuntimeDirectory`) | **TCP `127.0.0.1:8001`** |
+> | `ProtectHome` | `true` (deliberate — forced the `/opt` path) | **`read-only`**, plus `ReadWritePaths=/home/aegisflow/app` |
+> | nginx upstream | `upstream … { server unix:/run/aegisflow/gunicorn.sock; }` | `proxy_pass http://127.0.0.1:8001;` |
+> | `/opt/aegisflow` | assumed to exist | **does not exist** |
+>
+> **Source of truth for the running service, for now, is the installed files**,
+> not this repo's `deploy/` directory:
+> - `/etc/systemd/system/aegisflow.service`
+> - `/etc/nginx/sites-available/aegisflow` (symlinked from `sites-enabled/`)
+>
+> **Tracked follow-on work (NOT done in this session):**
+>
+> 1. **Deploy-config reconciliation.** Reconcile `deploy/aegisflow.service`,
+>    `deploy/nginx-aegisflow.conf`, and sections 6/7/10 of this report with the
+>    home-directory layout that is actually running (or make a deliberate
+>    decision to re-migrate onto `/opt/aegisflow/app` to match the drafts).
+>    Until then, treat everything below describing `/opt/aegisflow/app`, the
+>    unix socket, and `ProtectHome=true` as historical draft intent, not the
+>    deployed configuration.
+>
+> 2. **Test infrastructure — `manage.py test` does not run unqualified on this
+>    VPS.** The Postgres role `aegisflow` (from `.env`) lacks `CREATEDB`, so the
+>    Django test runner cannot create its `test_*` database:
+>    `Got an error creating the test database: permission denied to create
+>    database`. Additionally, the live `.env` now sets the production HTTPS vars
+>    (`DJANGO_SECURE_SSL_REDIRECT=True` etc.), so even against SQLite every view
+>    test 301-redirects before reaching the view. Fix one of:
+>    - grant `CREATEDB` to a dedicated test role (e.g. `aegisflow_test`) and
+>      point the test settings at it, or
+>    - add a `config/settings_test.py` that forces SQLite + disables the
+>      `SECURE_*` redirects, run via `--settings=config.settings_test`.
+>    Interim workaround used on 2026-09-06: run with the DB vars blanked (SQLite
+>    fallback) and `DJANGO_SECURE_SSL_REDIRECT=False DJANGO_SESSION_COOKIE_SECURE=False
+>    DJANGO_CSRF_COOKIE_SECURE=False` exported inline for the one command.
+
+---
+
 ## 1. Python / Django versions
 
 | Component | Version | Notes |
