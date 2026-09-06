@@ -50,6 +50,16 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 >    other `DJANGO_*` hardening vars (ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS,
 >    SECURE_PROXY_SSL_HEADER, SESSION/CSRF_COOKIE_SECURE, SSL_REDIRECT) were
 >    already correct and loaded — no change needed.
+>
+> 3. **New runtime dependency `pypdf` — added 2026-09-06.** The SOP Library
+>    upload now extracts text from `.docx` (stdlib `zipfile`/`ElementTree`,
+>    no new package) and PDF (`pypdf==6.17.0`, pure Python, no system
+>    packages). `requirements.txt` gained the pin. **Deploy step:** on the
+>    VPS, `git pull && /home/aegisflow/venv/bin/pip install -r requirements.txt`
+>    then reload gunicorn (`kill -HUP $MAINPID`). Until `pip install` runs,
+>    a PDF upload degrades to a friendly "PDF support isn't available"
+>    form error (the import is lazy) rather than a 500; `.docx` and plain
+>    text are unaffected.
 
 ---
 
@@ -59,7 +69,7 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 |---|---|---|
 | Python | **3.12.3** | checked-in `venv/` and system `python3` both 3.12.3. Django 6.0 hard-requires ≥ 3.12. |
 | Django | **6.0.6** | current 6.0.x patch line |
-| Installed packages (`venv`) | `asgiref==3.12.1`, `Django==6.0.6`, `gunicorn==26.0.0`, `packaging==26.3`, `psycopg2-binary==2.9.12`, `sqlparse==0.6.0` | `requirements.txt` pins only Django / psycopg2-binary / gunicorn; the rest are transitive |
+| Installed packages (`venv`) | `asgiref==3.12.1`, `Django==6.0.6`, `gunicorn==26.0.0`, `packaging==26.3`, `psycopg2-binary==2.9.12`, `pypdf==6.17.0`, `sqlparse==0.6.0` | `requirements.txt` pins Django / psycopg2-binary / gunicorn / pypdf (added 2026-09-06 for SOP PDF upload); the rest are transitive |
 | No `anthropic` SDK | — | AI layer calls `api.anthropic.com` directly via stdlib `urllib`; only needs `ANTHROPIC_API_KEY` in env |
 | `endpoint_agent/requirements.txt` | `pywin32==306 ; sys_platform == "win32"` | Windows-only; never installs on the Linux VPS, irrelevant to the server |
 

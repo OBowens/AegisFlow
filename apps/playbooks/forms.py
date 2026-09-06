@@ -1,18 +1,29 @@
 from django import forms
 
+from .services.document_extraction import (
+    DocumentParseError,
+    extract_checklist_text,
+    sniff_document_kind,
+)
+
 
 class SOPChecklistForm(forms.Form):
-    # An uploaded checklist is read straight into SOPChecklist.checklist_items
-    # (a TextField), so this form only accepts a small UTF-8 text file. Binary
-    # documents (.doc/.docx/.pdf) are NOT parsed -- they are rejected here,
-    # before the database is touched, rather than being best-effort decoded
-    # into a string that slips past validation and then 500s on insert
-    # (Postgres text columns cannot store NUL bytes).
-    MAX_CHECKLIST_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
+    # An uploaded checklist is read into SOPChecklist.checklist_items (a
+    # TextField), so uploads are validated here, before the database is
+    # touched. Three formats are accepted:
+    #   * plain UTF-8 text (.txt/.md) -- decoded strictly, NUL bytes
+    #     rejected (Postgres text columns can't store them);
+    #   * modern Word .docx and PDF -- text extracted via
+    #     services/document_extraction.py.
+    # Legacy .doc (binary OLE) is NOT supported: its magic bytes are
+    # neither PDF nor ZIP, so it falls to the text path and fails the
+    # strict decode with NOT_TEXT_FILE_ERROR -- unchanged behaviour.
+    MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024  # 2 MB -- plain-text path
+    MAX_DOCUMENT_FILE_SIZE = 10 * 1024 * 1024  # 10 MB -- .docx / PDF path
 
     NOT_TEXT_FILE_ERROR = (
-        "This doesn't look like a plain text file. Please upload a .txt or "
-        ".md file, or paste the checklist directly."
+        "This doesn't look like a plain text file. Please upload a .txt, .md, "
+        ".docx or PDF file, or paste the checklist directly."
     )
 
     name = forms.CharField(
@@ -46,10 +57,11 @@ class SOPChecklistForm(forms.Form):
         label="...or upload a checklist file",
         required=False,
         help_text=(
-            "Plain text file (.txt or .md), one step per line, max 2 MB. "
-            "Used instead of pasted text if both are given."
+            "Plain text (.txt, .md), Word (.docx), or PDF — one step per line, "
+            "max 10 MB. Legacy .doc files aren't supported; save as .docx or "
+            "paste the checklist directly."
         ),
-        widget=forms.ClearableFileInput(attrs={"accept": ".txt,.md"}),
+        widget=forms.ClearableFileInput(attrs={"accept": ".txt,.md,.docx,.pdf"}),
     )
 
     def clean_checklist_file(self):
@@ -57,26 +69,51 @@ class SOPChecklistForm(forms.Form):
         if not checklist_file:
             return checklist_file
 
-        if checklist_file.size > self.MAX_CHECKLIST_FILE_SIZE:
+        # Hard ceiling checked from the upload's own size before any read,
+        # so an oversized file never gets pulled into memory.
+        if checklist_file.size > self.MAX_DOCUMENT_FILE_SIZE:
             raise forms.ValidationError(
-                "That file is too large. Upload a plain text checklist under "
-                "2 MB, or paste the checklist directly."
+                "That file is too large. Upload a checklist under 10 MB, or "
+                "paste the checklist directly."
             )
 
-        # Strict decode: no errors="ignore" fallback that would silently turn
-        # binary bytes into a lossy string. A real text file decodes cleanly.
+        data = checklist_file.read()
+        kind = sniff_document_kind(data[:8])
+
+        if kind is None:
+            self._decoded_checklist_file = self._clean_text_upload(data)
+        else:
+            self._decoded_checklist_file = self._clean_document_upload(kind, data)
+
+        return checklist_file
+
+    def _clean_text_upload(self, data: bytes) -> str:
+        if len(data) > self.MAX_TEXT_FILE_SIZE:
+            raise forms.ValidationError(
+                "That text file is too large. Upload a plain text checklist "
+                "under 2 MB, or paste the checklist directly."
+            )
+
+        # Strict decode: no errors="ignore" fallback that would silently
+        # turn binary bytes into a lossy string. A real text file decodes
+        # cleanly.
         try:
-            decoded = checklist_file.read().decode("utf-8")
+            decoded = data.decode("utf-8")
         except UnicodeDecodeError:
             raise forms.ValidationError(self.NOT_TEXT_FILE_ERROR)
 
-        # UTF-8 will happily decode a NUL byte (U+0000); Postgres text columns
-        # reject it. Catch it here rather than at INSERT time.
+        # UTF-8 will happily decode a NUL byte (U+0000); Postgres text
+        # columns reject it. Catch it here rather than at INSERT time.
         if "\x00" in decoded:
             raise forms.ValidationError(self.NOT_TEXT_FILE_ERROR)
 
-        self._decoded_checklist_file = decoded
-        return checklist_file
+        return decoded
+
+    def _clean_document_upload(self, kind: str, data: bytes) -> str:
+        try:
+            return extract_checklist_text(kind, data)
+        except DocumentParseError as exc:
+            raise forms.ValidationError(str(exc))
 
     def clean(self):
         cleaned_data = super().clean()
