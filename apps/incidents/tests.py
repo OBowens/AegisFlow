@@ -126,7 +126,12 @@ class IncidentViewsTestCase(AuthedTestCase):
         self.assertContains(response, "Generate Playbook")
         self.assertContains(response, "Recommended Next Actions")
         self.assertContains(response, "No MFA Evidence")
-        self.assertContains(response, "EMAIL SERVER")
+        # The affected system renders as its stable alias (Part 4/5).
+        email_server_alias = AliasMapping.objects.get(
+            organization=self.organization, identifier_type="HOST", real_value="EMAIL SERVER"
+        ).display_alias
+        self.assertContains(response, email_server_alias)
+        self.assertNotContains(response, "EMAIL SERVER")
 
     def test_incident_list_uses_dashboard_shell(self):
         # A bare GET (no ?tab=) now genuinely resolves to the Overview
@@ -230,8 +235,20 @@ class IncidentDetailEvidenceAndGapsFullListTestCase(AuthedTestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
+        # Part 4/5: the incident page renders each source IP as its stable
+        # alias -- one distinct alias per distinct IP, so all 7 appearing
+        # proves nothing was capped.
+        ip_aliases = {
+            mapping.display_alias
+            for mapping in AliasMapping.objects.filter(
+                organization=self.organization, identifier_type="IP"
+            )
+        }
+        self.assertEqual(len(ip_aliases), 7)
+        for alias in ip_aliases:
+            self.assertIn(alias, content)
         for source_ip in ("203.0.113.1", "203.0.113.4", "203.0.113.7"):
-            self.assertIn(source_ip, content)
+            self.assertNotIn(source_ip, content)
         # All 3 event-type groups, not just the top 2 by count.
         self.assertContains(response, "Failed Login Events")
         self.assertContains(response, "Malware Alert")
@@ -402,7 +419,12 @@ class SourceIPCorrelationTestCase(AuthedTestCase):
         response = self.client.get(reverse("incidents:detail", args=[second_incident.id]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Related Prior Activity")
-        self.assertContains(response, "198.51.100.77")
+        # The prior activity's source IP renders as its stable alias.
+        prior_ip_alias = AliasMapping.objects.get(
+            organization=self.organization, identifier_type="IP", real_value="198.51.100.77"
+        ).display_alias
+        self.assertContains(response, prior_ip_alias)
+        self.assertNotContains(response, "198.51.100.77")
         # The prior incident's title is prose with an affected system in it,
         # so it renders through {% alias_prose %} -- the system is aliased,
         # the rest of the title is intact.

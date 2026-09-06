@@ -416,14 +416,25 @@ class ProviderRehydratesTheResponseTests(_IncidentFixture):
 # ---------------------------------------------------------------------------
 
 
-class EvidenceDisplayIsUnaffectedTests(_IncidentFixture):
-    def test_incident_detail_page_still_shows_the_real_identifiers(self):
-        # No AI call here at all -- just the ordinary page render.
+class EvidenceDisplayIsAliasedTests(_IncidentFixture):
+    def test_incident_detail_page_shows_aliases_not_the_real_identifiers(self):
+        # No AI call here at all -- just the ordinary page render. Part 4/5:
+        # structured fields AND prose render as stable aliases; the real
+        # values never reach the page.
         response = self.client.get(reverse("incidents:detail", args=[self.incident.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "203.0.113.77")
-        self.assertContains(response, "d.whitfield")
-        self.assertContains(response, "PAYROLL-DB-01")
+        for identifier_type, real_value in (
+            ("IP", "203.0.113.77"),
+            ("USER", "d.whitfield"),
+            ("HOST", "PAYROLL-DB-01"),
+        ):
+            self.assertNotContains(response, real_value)
+            alias = AliasMapping.objects.get(
+                organization=self.organization,
+                identifier_type=identifier_type,
+                real_value=real_value,
+            ).display_alias
+            self.assertContains(response, alias)
         self.assertNotContains(response, "[[IP_1]]")
 
     def test_evidence_api_context_is_built_straight_from_the_orm(self):
