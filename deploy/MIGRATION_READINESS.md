@@ -5,40 +5,27 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 
 ---
 
-> ## 2026-09-06 — installed reality now DIVERGES from the `deploy/` drafts
+> ## 2026-09-06 — deployment notes (updates the original plan below)
 >
-> The app has since been moved onto the VincyPros VPS and is **deployed and
-> live** at `https://aegisflow.vincypros.com` — but **not** via the committed
-> `deploy/aegisflow.service` / `deploy/nginx-aegisflow.conf` drafts. The VPS
-> was provisioned with a home-directory layout, and the systemd unit was
-> hand-adapted for it. Installed reality vs. the drafts:
+> The app was moved onto the VincyPros VPS and is **deployed and live** at
+> `https://aegisflow.vincypros.com`, running from a **home-directory layout**
+> — `/home/aegisflow/app`, virtualenv at `/home/aegisflow/venv`, gunicorn on
+> TCP `127.0.0.1:8001` behind nginx — rather than the `/opt/aegisflow` +
+> unix-socket + `ProtectHome=true` design sketched in §§7 and 10 below.
 >
-> | Aspect | Committed draft (`deploy/*`) | Actually installed on the VPS |
-> |---|---|---|
-> | App directory | `/opt/aegisflow/app` | **`/home/aegisflow/app`** |
-> | virtualenv | `/opt/aegisflow/app/venv` | **`/home/aegisflow/venv`** |
-> | `.env` | `/opt/aegisflow/app/.env` | `/home/aegisflow/app/.env` |
-> | gunicorn bind | unix socket `/run/aegisflow/gunicorn.sock` (`Type=notify`, `RuntimeDirectory`) | **TCP `127.0.0.1:8001`** |
-> | `ProtectHome` | `true` (deliberate — forced the `/opt` path) | **`read-only`**, plus `ReadWritePaths=/home/aegisflow/app` |
-> | nginx upstream | `upstream … { server unix:/run/aegisflow/gunicorn.sock; }` | `proxy_pass http://127.0.0.1:8001;` |
-> | `/opt/aegisflow` | assumed to exist | **does not exist** |
+> **`deploy/aegisflow.service` and `deploy/nginx-aegisflow.conf` now match the
+> installed configuration** (reconciled 2026-09-06): below their header
+> comments they are line-for-line identical to
+> `/etc/systemd/system/aegisflow.service` and
+> `/etc/nginx/sites-available/aegisflow`. The repo drafts and the installed
+> files are kept in sync — either can be treated as the source of truth. The
+> `# managed by Certbot` lines in the nginx file are maintained by
+> `certbot renew`; don't hand-edit them. §§7 and 10 still narrate the original
+> `/opt` + fresh-provision plan as background — see the pointers there.
 >
-> **Source of truth for the running service, for now, is the installed files**,
-> not this repo's `deploy/` directory:
-> - `/etc/systemd/system/aegisflow.service`
-> - `/etc/nginx/sites-available/aegisflow` (symlinked from `sites-enabled/`)
+> **Still open / recorded:**
 >
-> **Tracked follow-on work (NOT done in this session):**
->
-> 1. **Deploy-config reconciliation.** Reconcile `deploy/aegisflow.service`,
->    `deploy/nginx-aegisflow.conf`, and sections 6/7/10 of this report with the
->    home-directory layout that is actually running (or make a deliberate
->    decision to re-migrate onto `/opt/aegisflow/app` to match the drafts).
->    Until then, treat everything below describing `/opt/aegisflow/app`, the
->    unix socket, and `ProtectHome=true` as historical draft intent, not the
->    deployed configuration.
->
-> 2. **Test infrastructure — `manage.py test` does not run unqualified on this
+> 1. **Test infrastructure — `manage.py test` does not run unqualified on this
 >    VPS.** The Postgres role `aegisflow` (from `.env`) lacks `CREATEDB`, so the
 >    Django test runner cannot create its `test_*` database:
 >    `Got an error creating the test database: permission denied to create
@@ -53,7 +40,7 @@ Target: Vincy Connect VPS. Nothing in this report was deployed, restarted, or mo
 >    fallback) and `DJANGO_SECURE_SSL_REDIRECT=False DJANGO_SESSION_COOKIE_SECURE=False
 >    DJANGO_CSRF_COOKIE_SECURE=False` exported inline for the one command.
 >
-> 3. **`DJANGO_DEBUG` was still `True` in the live `.env` — fixed 2026-09-06.**
+> 2. **`DJANGO_DEBUG` was still `True` in the live `.env` — fixed 2026-09-06.**
 >    Despite the checklist below (§ "Non-secret configuration") calling for
 >    `False`, the deployed `.env` shipped with `DJANGO_DEBUG=True`, so production
 >    error pages (incl. Django's CSRF-403 page) were exposing a full settings /
@@ -174,7 +161,7 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 
 ## 6. Background services
 
-- **App WSGI server:** gunicorn (one process group, `--workers 3`). In this dev tree it is normally run via `manage.py runserver`; the drafted production unit is `deploy/aegisflow.service`.
+- **App WSGI server:** gunicorn, `--workers 2`, bound to TCP `127.0.0.1:8001` behind nginx. Installed as `/etc/systemd/system/aegisflow.service` and mirrored by `deploy/aegisflow.service`. In this dev tree it is normally run via `manage.py runserver`.
 - **Endpoint-triage job:** `manage.py triage_endpoint_events` — correlates recent endpoint events and AI-triages the flagged clusters. **Scheduled 2026-09-06** via the `aegisflow` *user* crontab (`crontab -l`), `*/10 * * * *`, running `deploy/cron-triage-endpoint-events.sh` (flock-guarded wrapper; output → `logs/triage-endpoint-events.log`). Host cron, not a systemd timer — deliberate (see the script header). `cron` **is** installed and enabled on this box (the earlier "not installed" note is stale). To reinstall the entry: `crontab deploy/aegisflow.crontab` (or add the one line by hand).
 - **No Celery / RQ / channels / websockets / message broker.** No `redis`, no `memcached`. Rate limiting is DB-backed against the `AIRun` table specifically to avoid needing a shared cache.
 - **PostgreSQL** — local, `postgresql@16-main.service`.
@@ -190,9 +177,9 @@ Selection logic: Postgres is used only when **all five** `DATABASE_*` vars are s
 - Nginx site `/etc/nginx/sites-available/caribsecure` → proxy to `127.0.0.1:8001`, `server_name 136.115.62.107 _;`, static alias `/var/www/caribsecure/staticfiles/`. HTTP only (port 80), no TLS.
 - This legacy stack is the thing the VPS move replaces. It has none of `apps/endpoints`, `endpoint_agent`, or the current `ai_core` — ~2.5 months undeployed.
 
-**Drafted production launch (this session, `deploy/`, NOT installed):**
-- `deploy/aegisflow.service` — gunicorn `Type=notify`, unix socket `/run/aegisflow/gunicorn.sock` (`RuntimeDirectory=aegisflow`, mode 0750), `User=aegisflow`, `WorkingDirectory=/opt/aegisflow/app`, `After=/Requires=postgresql.service`. Sandboxing: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=/opt/aegisflow/app`, kernel/cgroup protections.
-- `deploy/nginx-aegisflow.conf` — proxy to that socket, `/static/` served off disk from `/opt/aegisflow/app/staticfiles/`, `client_max_body_size 25m`, `server_name aegisflow.vincypros.com`, HTTP-only until `certbot --nginx` slots in the 443 block.
+**Production launch (`deploy/`, mirrors what is installed — reconciled 2026-09-06):**
+- `deploy/aegisflow.service` — gunicorn `Type=notify`, `--workers 2`, TCP `127.0.0.1:8001`, `User=aegisflow`, `WorkingDirectory=/home/aegisflow/app`, `After=/Requires=postgresql.service`. Sandboxing: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome=read-only`, `ReadWritePaths=/home/aegisflow/app`, kernel/cgroup protections. Line-for-line identical to `/etc/systemd/system/aegisflow.service` below the header comment.
+- `deploy/nginx-aegisflow.conf` — proxy to `http://127.0.0.1:8001`, `/static/` served off disk from `/home/aegisflow/app/staticfiles/` (`expires 7d`), `client_max_body_size 25m`, `server_name aegisflow.vincypros.com`, 443/TLS server + HTTP→HTTPS redirect managed by `certbot --nginx`. Line-for-line identical to `/etc/nginx/sites-available/aegisflow` below the header comment.
 
 ---
 
@@ -258,6 +245,9 @@ No Redis, Memcached, RabbitMQ, Node, or build toolchain for assets (static is pr
 - `certbot.timer` (installed with the certbot package; renews automatically)
 
 ### VPS provisioning steps not done here (Phase 3)
+
+> Background only — describes the original from-scratch `/opt/aegisflow/app` + dedicated-service-user plan. The live VPS runs from `/home/aegisflow/app` (home-directory layout); `deploy/aegisflow.service` / `deploy/nginx-aegisflow.conf` and the top-of-report note reflect what is actually installed.
+
 1. Create service user `aegisflow:aegisflow` (no login shell, home `/opt/aegisflow`).
 2. Check out the repo (with `.git/`) to `/opt/aegisflow/app`; build `venv/`; `pip install -r requirements.txt`.
 3. Hand-transfer `.env` to `/opt/aegisflow/app/.env`, `0600 aegisflow:aegisflow`, with `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=aegisflow.vincypros.com`, `DJANGO_CSRF_TRUSTED_ORIGINS=https://aegisflow.vincypros.com`, and the `DJANGO_SECURE_*` vars set to production values.
@@ -270,7 +260,7 @@ No Redis, Memcached, RabbitMQ, Node, or build toolchain for assets (static is pr
 
 ## Confirmations for this session's change set
 
-- **Exact diff:** `config/settings.py` (+105) and `.env.example` (+22); `deploy/aegisflow.service` and `deploy/nginx-aegisflow.conf` added as-is (drafts from session `209cb9cd`, unchanged). All in commit `6d033cb`.
+- **Exact diff:** `config/settings.py` (+105) and `.env.example` (+22); `deploy/aegisflow.service` and `deploy/nginx-aegisflow.conf` added as-is (drafts from session `209cb9cd`, unchanged). All in commit `6d033cb`. _(2026-09-06: the two `deploy/` files were later rewritten to mirror the installed home-directory configuration — see the note at the top of this report.)_
 - **`manage.py check`:** no issues.
 - **`manage.py test --noinput`:** 726 passed.
 - **No secrets added:** every secret-shaped line in the diff is an empty `KEY=` or a bare variable name. Verified.

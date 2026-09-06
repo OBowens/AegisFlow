@@ -1,54 +1,41 @@
-# deploy/aegisflow.service  --  DRAFT for review (Phase 2). NOT installed.
+# deploy/aegisflow.service
 #
-# Phase 3 install target:  /etc/systemd/system/aegisflow.service
-#   sudo cp deploy/aegisflow.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now aegisflow.service
+# Mirrors the unit actually installed on the VincyPros VPS at
+# /etc/systemd/system/aegisflow.service as of 2026-09-06. This file and the
+# installed one are kept identical below the header -- if you change one,
+# change the other (or re-copy):
 #
-# Assumptions baked into the paths below (all Phase 3 VPS provisioning):
-#   * App checked out at        /opt/aegisflow/app        (the git working tree,
-#                                                          .git and all, moved
-#                                                          from ~/caribsecure_live)
-#   * virtualenv at             /opt/aegisflow/app/venv    (gunicorn already in
-#                                                          requirements.txt)
-#   * Runs as service user      aegisflow:aegisflow        (no login shell,
-#                                                          home = /opt/aegisflow,
-#                                                          created in Phase 3)
-#   * .env lives at             /opt/aegisflow/app/.env    (transferred by hand,
-#                                                          0600 aegisflow:aegisflow;
-#                                                          config/settings.py reads
-#                                                          it itself -- no
-#                                                          EnvironmentFile= needed)
-#   * gunicorn listens on a unix socket, not a TCP port; Nginx proxies to it
-#     (see deploy/nginx-aegisflow.conf).
+#   sudo cp deploy/aegisflow.service /etc/systemd/system/aegisflow.service
+#   sudo systemctl daemon-reload && sudo systemctl restart aegisflow
 #
-# Adjust WorkingDirectory / ExecStart / User if you deploy somewhere else.
+# The app runs from a home-directory layout: /home/aegisflow/app, virtualenv
+# at /home/aegisflow/venv, gunicorn on TCP 127.0.0.1:8001 behind nginx (see
+# deploy/nginx-aegisflow.conf). The earlier /opt/aegisflow + unix-socket +
+# ProtectHome=true design was drafted but never deployed; see
+# deploy/MIGRATION_READINESS.md.
 
 [Unit]
-Description=AegisFlow AI (gunicorn / Django)
-Documentation=https://claude.ai/code/session_01Pegwr746H4rJEP8PqV4nuX
+Description=AEGISFlow Gunicorn Service
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
 
 [Service]
 Type=notify
+
 User=aegisflow
 Group=aegisflow
-WorkingDirectory=/opt/aegisflow/app
+
+WorkingDirectory=/home/aegisflow/app
+
 Environment=DJANGO_SETTINGS_MODULE=config.settings
 Environment=PYTHONUNBUFFERED=1
 
-# systemd creates/owns /run/aegisflow (0750) and cleans it up on stop.
-# The socket path here MUST match `upstream` in deploy/nginx-aegisflow.conf.
-RuntimeDirectory=aegisflow
-RuntimeDirectoryMode=0750
-
-ExecStart=/opt/aegisflow/app/venv/bin/gunicorn config.wsgi:application \
+ExecStart=/home/aegisflow/venv/bin/gunicorn config.wsgi:application \
     --name aegisflow \
-    --workers 3 \
-    --bind unix:/run/aegisflow/gunicorn.sock \
-    --umask 007 \
+    --workers 2 \
+    --bind 127.0.0.1:8001 \
+    --no-control-socket \
     --timeout 60 \
     --graceful-timeout 30 \
     --max-requests 1000 \
@@ -56,24 +43,20 @@ ExecStart=/opt/aegisflow/app/venv/bin/gunicorn config.wsgi:application \
     --access-logfile - \
     --error-logfile - \
     --capture-output
-# --workers 3 is a conservative default (rule of thumb: 2*CPU cores + 1).
-# Retune once the VPS core count is known.
-# --access-logfile - / --error-logfile - / --capture-output send everything
-# to stdout/stderr, which journald captures (journalctl -u aegisflow).
 
 ExecReload=/bin/kill -s HUP $MAINPID
+
 KillMode=mixed
 Restart=on-failure
 RestartSec=3
 
-# --- Sandboxing ---------------------------------------------------------------
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
-# Everything the app writes at runtime lives under the project dir:
-#   logs/, private_uploads/, private_exports/, staticfiles/, db_backups/
-ReadWritePaths=/opt/aegisflow/app
+ProtectHome=read-only
+
+ReadWritePaths=/home/aegisflow/app
+
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
