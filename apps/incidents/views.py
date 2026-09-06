@@ -2303,7 +2303,12 @@ def _render_workflow_stage(request, incident, stage, *, workflow_qa_error=None, 
         ),
         "workflow_qa_error": workflow_qa_error,
     })
-    return render(request, "incidents/workflow.html", context)
+    template_name = (
+        "incidents/business_workflow.html"
+        if request.session.get("experience_mode") == "business"
+        else "incidents/workflow.html"
+    )
+    return render(request, template_name, context)
 
 
 def _set_workflow_status(request, incident, new_status, details):
