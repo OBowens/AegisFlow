@@ -15,8 +15,8 @@
 #define ExeName "aegis-agent.exe"
 
 ; --- BAKED-IN DEPLOYMENT SETTINGS (not asked at install time) ---------
-; TODO: replace with the real backend URL once HTTPS is set up on the VM.
-#define BackendBaseUrl "https://aegisflow.example.org"
+; Production backend (HTTPS via nginx/Let's Encrypt on the VincyPros VPS).
+#define BackendBaseUrl "https://aegisflow.vincypros.com"
 #define InstallDir "{autopf}\AegisFlow Agent"
 #define DataDir "{commonappdata}\AegisFlow\agent"
 ; ---------------------------------------------------------------------
